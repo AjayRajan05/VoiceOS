@@ -202,20 +202,28 @@ class ToolRegistry:
         try:
             # Check for metadata attribute
             if hasattr(tool_class, 'TOOL_METADATA'):
-                metadata_dict = tool_class.TOOL_METADATA
-                return ToolMetadata(
-                    name=metadata_dict.get('name', tool_class.__name__.lower()),
-                    description=metadata_dict.get('description', ''),
-                    category=ToolCategory(metadata_dict.get('category', 'system_tools')),
-                    version=metadata_dict.get('version', '1.0.0'),
-                    author=metadata_dict.get('author', 'Unknown'),
-                    dependencies=metadata_dict.get('dependencies', []),
-                    parameters=metadata_dict.get('parameters', {}),
-                    safety_level=metadata_dict.get('safety_level', 'medium'),
-                    async_execution=metadata_dict.get('async_execution', False),
-                    timeout=metadata_dict.get('timeout', self.config.default_timeout),
-                    tags=metadata_dict.get('tags', [])
-                )
+                metadata_value = tool_class.TOOL_METADATA
+                if isinstance(metadata_value, ToolMetadata):
+                    return metadata_value
+                if isinstance(metadata_value, dict):
+                    category = metadata_value.get('category', 'system_tools')
+                    if isinstance(category, ToolCategory):
+                        category_enum = category
+                    else:
+                        category_enum = ToolCategory(category)
+                    return ToolMetadata(
+                        name=metadata_value.get('name', tool_class.__name__.lower()),
+                        description=metadata_value.get('description', ''),
+                        category=category_enum,
+                        version=metadata_value.get('version', '1.0.0'),
+                        author=metadata_value.get('author', 'Unknown'),
+                        dependencies=metadata_value.get('dependencies', []),
+                        parameters=metadata_value.get('parameters', {}),
+                        safety_level=metadata_value.get('safety_level', 'medium'),
+                        async_execution=metadata_value.get('async_execution', False),
+                        timeout=metadata_value.get('timeout', self.config.default_timeout),
+                        tags=metadata_value.get('tags', [])
+                    )
             
             # Extract from docstring
             docstring = tool_class.__doc__ or ""

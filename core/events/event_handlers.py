@@ -639,3 +639,14 @@ class EventHandlers:
         
         self.handler_mappings.clear()
         logger.info("Event handlers shutdown complete")
+
+
+_handlers_instance = None
+
+
+def get_event_handlers(event_bus, memory_manager=None, config=None):
+    """Return shared EventHandlers instance."""
+    global _handlers_instance
+    if _handlers_instance is None:
+        _handlers_instance = EventHandlers(event_bus, memory_manager, config)
+    return _handlers_instance

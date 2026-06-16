@@ -1,18 +1,120 @@
 version: '3.8'
 
+# Hybrid architecture (recommended):
+#   Host:  python main.py --config config/voiceos.hybrid.yaml   (voice + OS control)
+#   Infra: docker compose --profile core up -d
+#   Workers: docker compose --profile workers up -d --scale voiceos-worker=2
+#   LLM:   docker compose --profile llm up -d
+#
+# Legacy all-in-one (Linux GUI in container): docker compose --profile full up -d
+
+x-worker-env: &worker-env
+  VOICEOS_ENV: production
+  PYTHONPATH: /app
+  VOICEOS_TOOL_PROFILE: worker
+  EXECUTION_MODE: local
+  REDIS_URL: redis://voiceos-cache:6379/0
+  LLM_ENDPOINT: http://voiceos-llm:11434
+  VOICEOS_LLM_API_BASE: http://voiceos-llm:11434
+
 services:
+  # --- Profile: core (Redis + Postgres) ---
+  voiceos-cache:
+    image: redis:6-alpine
+    container_name: voiceos-redis
+    profiles: [core, workers, llm, full]
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - voiceos-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  voiceos-db:
+    image: postgres:13-alpine
+    container_name: voiceos-database
+    profiles: [core, full]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: voiceos
+      POSTGRES_USER: voiceos
+      POSTGRES_PASSWORD: voiceos123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - voiceos-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voiceos"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # --- Profile: workers (agent sandbox, no OS tools) ---
+  voiceos-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    profiles: [workers]
+    restart: unless-stopped
+    environment:
+      <<: *worker-env
+    volumes:
+      - ./workspace:/app/workspace
+      - ./memory:/app/memory
+      - ./logs:/app/logs
+      - ./config:/app/config
+    networks:
+      - voiceos-network
+    depends_on:
+      voiceos-cache:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+
+  # --- Profile: llm (optional Ollama inference server) ---
+  voiceos-llm:
+    image: ollama/ollama:latest
+    container_name: voiceos-ollama
+    profiles: [llm]
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - voiceos-network
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+
+  # --- Profile: full (legacy all-in-one; OS tools target container, not host) ---
   voiceos:
     build: .
     container_name: voiceos-agent-system
+    profiles: [full]
     restart: unless-stopped
-    
-    # Environment variables
     environment:
-      - VOICEOS_ENV=production
-      - PYTHONPATH=/app
-      - DISPLAY=:99  # Virtual display for GUI applications
-    
-    # Volumes for persistence
+      VOICEOS_ENV: production
+      PYTHONPATH: /app
+      DISPLAY: ":99"
+      REDIS_URL: redis://voiceos-cache:6379/0
+      DATABASE_URL: postgresql://voiceos:voiceos123@voiceos-db:5432/voiceos
+      EXECUTION_MODE: local
     volumes:
       - ./workspace:/app/workspace
       - ./memory:/app/memory
@@ -20,134 +122,35 @@ services:
       - ./models:/app/models
       - ./config:/app/config
       - voiceos_data:/app/data
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw  # Display for GUI applications
-    
-    # Port mapping
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
     ports:
-      - "8000:8000"  # Potential web interface
-    
-    # Device access for system control
+      - "8000:8000"
     devices:
-      - /dev/snd:/dev/snd  # Audio devices
-    
-    # Capabilities for system control
+      - /dev/snd:/dev/snd
     cap_add:
-      - SYS_ADMIN  # Required for some system operations
-    
-    # Security settings
+      - SYS_ADMIN
     security_opt:
       - no-new-privileges:true
-    
-    # Resource limits
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 4G
-        reservations:
-          cpus: '0.5'
-          memory: 1G
-    
-    # Network configuration
     networks:
       - voiceos-network
-    
-    # Health check
+    depends_on:
+      voiceos-db:
+        condition: service_healthy
+      voiceos-cache:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "/app/healthcheck.sh"]
+      test: ["CMD", "python", "main.py", "--test"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    
-    # Logging configuration
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # Optional: Database for persistent storage
-  voiceos-db:
-    image: postgres:13-alpine
-    container_name: voiceos-database
-    restart: unless-stopped
-    
-    environment:
-      - POSTGRES_DB=voiceos
-      - POSTGRES_USER=voiceos
-      - POSTGRES_PASSWORD=voiceos123
-    
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
-    
-    networks:
-      - voiceos-network
-    
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-
-  # Optional: Redis for caching
-  voiceos-cache:
-    image: redis:6-alpine
-    container_name: voiceos-redis
-    restart: unless-stopped
-    
-    command: redis-server --appendonly yes
-    
-    volumes:
-      - redis_data:/data
-    
-    networks:
-      - voiceos-network
-    
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-
-  # Optional: Web interface (if implemented)
-  voiceos-web:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: voiceos-web
-    restart: unless-stopped
-    
-    ports:
-      - "3000:3000"
-    
-    environment:
-      - REACT_APP_API_URL=http://voiceos:8000
-    
-    depends_on:
-      - voiceos
-    
-    networks:
-      - voiceos-network
-    
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
 
 volumes:
   voiceos_data:
-    driver: local
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
+  ollama_data:
 
 networks:
   voiceos-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16

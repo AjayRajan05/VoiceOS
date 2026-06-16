@@ -15,6 +15,7 @@ class TaskType(Enum):
     SIMPLE = "simple"
     COMPLEX = "complex"
     AUTONOMOUS = "autonomous"
+    WORKFLOW = "workflow"
 
 @dataclass
 class TaskPlan:
@@ -42,6 +43,20 @@ class Planner:
             r'paste\s*(.+?)?$': 'paste_text',
             r'screenshot\s*(.+?)?$': 'take_screenshot',
             r'search\s+(?:for\s+)?(.+?)\s*$': 'web_search_simple',
+            r'focus\s+(?:on\s+)?(.+?)\s*$': 'focus_application',
+            r'open\s+(vscode|cursor|code)\s*$': 'open_application',
+            r'edit\s+file\s+(.+?)\s*$': 'edit_file',
+            r'create\s+file\s+(.+?)\s+with\s+(.+?)\s*$': 'create_file_with_content',
+            r'create\s+file\s+(.+?)\s*$': 'create_file',
+            r'run\s+(?:file|script|code)\s*(.+?)?$': 'run_code',
+            r'install\s+plugin\s+(.+?)\s*$': 'install_plugin',
+            r'search\s+plugins\s+(?:for\s+)?(.+?)\s*$': 'search_plugins',
+        }
+        
+        self.workflow_patterns = {
+            r'research\s+(.+?)\s+and\s+(?:write|build|create)\s+(.+?)\s*$': ('researcher', 'developer'),
+            r'analyze\s+(.+?)\s+and\s+create\s+(?:a\s+)?report\s*$': ('analyst', 'researcher'),
+            r'research\s+(.+?)\s+and\s+analyze\s+(.+?)\s*$': ('researcher', 'analyst'),
         }
         
         self.complex_patterns = {
@@ -60,10 +75,12 @@ class Planner:
             r'build\s+(?:a\s+)?(?:project|solution|system)\s*(?:for\s+)?(.+?)?$': 'autonomous_build',
             r'automate\s+(?:this\s+)?workflow\s*(?:for\s+)?(.+?)?$': 'autonomous_automate',
             r'develop\s+(?:a\s+)?(?:full\s+)?(?:solution|system)\s*(?:for\s+)?(.+?)?$': 'autonomous_develop',
+            r'develop\s+(?:a\s+)?(?:complete|full)\s+(?:solution|system)\s*(?:for\s+)?(.+?)?$': 'autonomous_develop',
             r'create\s+(?:a\s+)?(?:complete|full)\s+(?:application|program|system)\s*(?:for\s+)?(.+?)?$': 'autonomous_create',
             r'implement\s+(?:a\s+)?(?:complete|full)\s+(?:solution|system)\s*(?:for\s+)?(.+?)?$': 'autonomous_implement',
             r'analyze\s+and\s+iterate\s+(?:on\s+)?(.+?)?$': 'autonomous_analyze_iterate',
             r'build\s+(?:a\s+)?python\s+script\s+to\s+(.+?)\s*$': 'autonomous_python_script',
+            r'create\s+(?:a\s+)?(?:web\s+)?scraper\s+(?:for\s+)?(.+?)?$': 'autonomous_scraper',
             r'create\s+(?:a\s+)?(?:web\s+)?scraper\s+to\s+(.+?)\s*$': 'autonomous_scraper',
             r'design\s+(?:and\s+)?implement\s+(?:a\s+)?(.+?)\s*system\s*$': 'autonomous_design_implement',
         }
@@ -79,6 +96,13 @@ class Planner:
             'paste_text': ['os_paste'],
             'take_screenshot': ['os_screenshot'],
             'web_search_simple': ['web_search'],
+            'focus_application': ['system_focus_app'],
+            'edit_file': ['ide_workflow'],
+            'create_file': ['ide_workflow'],
+            'create_file_with_content': ['ide_workflow'],
+            'run_code': ['ide_workflow'],
+            'install_plugin': ['marketplace'],
+            'search_plugins': ['marketplace'],
         }
     
     def analyze_input(self, user_input: str) -> TaskPlan:
@@ -87,11 +111,25 @@ class Planner:
         """
         user_input = user_input.strip().lower()
         
-        # Check for autonomous tasks first (highest complexity)
+        # Compound multi-agent workflows (regex)
+        workflow_result = self._check_workflow_patterns(user_input)
+        if workflow_result:
+            return workflow_result
+
+        # Check for autonomous tasks before compound workflow heuristics
         autonomous_result = self._check_autonomous_patterns(user_input)
         if autonomous_result:
             logger.info(f"Autonomous task detected: {autonomous_result.intent}")
             return autonomous_result
+
+        # Meta-planner for broader compound phrases
+        try:
+            from agents.workflow.meta_planner import analyze_compound
+            meta = analyze_compound(user_input)
+            if meta:
+                return meta
+        except ImportError:
+            pass
         
         # Check for simple tasks next (for low latency)
         simple_result = self._check_simple_patterns(user_input)
@@ -105,15 +143,46 @@ class Planner:
             logger.info(f"Complex task detected: {complex_result.intent}, role: {complex_result.role}")
             return complex_result
         
-        # Default to simple with generic intent
+        # Default to complex researcher for unmatched natural language
         return TaskPlan(
-            type=TaskType.SIMPLE,
-            intent="generic_command",
+            type=TaskType.COMPLEX,
+            intent="general_query",
             confidence=0.5,
-            steps=["execute_generic_command"],
-            tools_required=["os_generic"],
-            context={"original_input": user_input}
+            steps=["research_and_respond"],
+            tools_required=[],
+            role="researcher",
+            context={"original_input": user_input},
         )
+    
+    def _check_workflow_patterns(self, user_input: str) -> Optional[TaskPlan]:
+        import uuid
+        for pattern, roles in self.workflow_patterns.items():
+            match = re.search(pattern, user_input, re.IGNORECASE)
+            if match:
+                groups = match.groups()
+                nodes = []
+                for i, role in enumerate(roles):
+                    goal = groups[i] if i < len(groups) else user_input
+                    nodes.append({
+                        "node_id": f"node_{i}",
+                        "role": role,
+                        "goal": goal,
+                        "depends_on": [f"node_{i-1}"] if i > 0 else [],
+                    })
+                return TaskPlan(
+                    type=TaskType.WORKFLOW,
+                    intent="multi_agent_workflow",
+                    confidence=0.85,
+                    steps=[f"run_{role}" for role in roles],
+                    tools_required=[],
+                    role="workflow",
+                    context={
+                        "workflow_id": str(uuid.uuid4())[:8],
+                        "workflow_nodes": nodes,
+                        "parameters": groups,
+                    },
+                )
+        return None
     
     def _check_simple_patterns(self, user_input: str) -> Optional[TaskPlan]:
         """Check if input matches simple task patterns"""
@@ -319,6 +388,9 @@ class Planner:
             return False
         
         if plan.type == TaskType.COMPLEX and not plan.role:
+            return False
+        
+        if plan.type == TaskType.WORKFLOW and not plan.context.get("workflow_nodes"):
             return False
         
         if plan.confidence < 0.3:

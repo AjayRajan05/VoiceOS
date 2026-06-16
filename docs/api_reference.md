@@ -1,894 +1,851 @@
 # 📚 VoiceOS API Reference
 
-This document provides comprehensive API documentation for all VoiceOS modules, tools, and components.
+Complete API reference for VoiceOS core modules, agents, tools, audio, LLM, memory, and plugins.
+
+---
+
+## Table of Contents
+
+- [Core API](#-core-api)
+- [Tools API](#️-tools-api)
+- [Permissions API](#-permissions-api)
+- [Agents API](#-agents-api)
+- [Tool Registry API](#-tool-registry-api)
+- [Audio API](#-audio-api)
+- [LLM API](#-llm-api)
+- [Memory API](#-memory-api)
+- [Plugin API](#-plugin-api)
+- [Core Integration Systems API](#-core-integration-systems-api)
+- [Usage Examples](#-usage-examples)
+
+---
 
 ## 🏗️ Core API
 
-### Configuration API
+### `core.config.Config`
 
-#### `core.config.Config`
+Central configuration singleton for VoiceOS.
 
 ```python
 class Config:
-    """Central configuration management for VoiceOS"""
-    
     @property
     def project_root(self) -> Path:
-        """Get the project root directory"""
-        
+        """Absolute path to the project root directory"""
+
     @property
     def workspace(self) -> Path:
-        """Get the workspace directory"""
-        
+        """Absolute path to the workspace directory"""
+
     def get_config(self, key: str, default: Any = None) -> Any:
-        """Get configuration value by key"""
-        
+        """Get a configuration value by dotted key (e.g. 'voice.enable_interrupts')"""
+
     def set_config(self, key: str, value: Any) -> None:
-        """Set configuration value"""
-        
+        """Set a configuration value at runtime"""
+
     def load_from_file(self, config_path: Path) -> None:
-        """Load configuration from YAML file"""
-```
-
-#### Event System API
-
-```python
-class Event:
-    """Base event class for VoiceOS event system"""
-    
-    def __init__(self, event_type: str, data: Dict[str, Any]):
-        """Initialize event with type and data"""
-        
-    @property
-    def timestamp(self) -> datetime:
-        """Get event timestamp"""
-        
-    @property
-    def event_type(self) -> str:
-        """Get event type"""
-        
-    @property
-    def data(self) -> Dict[str, Any]:
-        """Get event data"""
-
-class EventBus:
-    """Event bus for publishing and subscribing to events"""
-    
-    def subscribe(self, event_type: str, callback: Callable) -> str:
-        """Subscribe to event type with callback"""
-        
-    def unsubscribe(self, subscription_id: str) -> None:
-        """Unsubscribe from event"""
-        
-    def publish(self, event: Event) -> None:
-        """Publish event to all subscribers"""
-```
-
-## 🛠️ Tools API
-
-### File Tools API
-
-#### `tools.file_tools.enhanced_file_manager.EnhancedFileManager`
-
-```python
-class EnhancedFileManager:
-    """Safe file operations within workspace boundaries"""
-    
-    def __init__(self, workspace_root: Optional[str] = None):
-        """Initialize file manager with workspace root"""
-        
-    @check_permission(PermissionLevel.LOW)
-    def read_file(self, path: str) -> str:
-        """Safely read file within workspace"""
-        
-    @check_permission(PermissionLevel.MEDIUM)
-    def write_file(self, path: str, content: str) -> str:
-        """Safely write file within workspace"""
-        
-    @check_permission(PermissionLevel.MEDIUM)
-    def create_file(self, path: str) -> str:
-        """Create empty file within workspace"""
-        
-    @check_permission(PermissionLevel.HIGH)
-    def delete_file(self, path: str) -> str:
-        """Delete file within workspace (requires high permission)"""
-        
-    @check_permission(PermissionLevel.LOW)
-    def list_directory(self, path: str = ".") -> List[Dict[str, Any]]:
-        """List directory contents within workspace"""
-        
-    @check_permission(PermissionLevel.LOW)
-    def file_exists(self, path: str) -> bool:
-        """Check if file exists within workspace"""
-```
-
-### Web Tools API
-
-#### `tools.web_tools.browser_tool.BrowserTool`
-
-```python
-class BrowserTool:
-    """Safe web browsing and scraping with security constraints"""
-    
-    def __init__(self, workspace_root: Optional[str] = None):
-        """Initialize browser tool with workspace root"""
-        
-    @check_permission(PermissionLevel.MEDIUM)
-    def open_page(self, url: str) -> Dict[str, Any]:
-        """Safely open web page and retrieve content"""
-        
-    @check_permission(PermissionLevel.MEDIUM)
-    def scrape_content(self, url: str, selectors: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Scrape content from web page with optional CSS selectors"""
-        
-    @check_permission(PermissionLevel.LOW)
-    def search_web(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
-        """Perform web search (using safe search endpoints)"""
-        
-    @check_permission(PermissionLevel.LOW)
-    def get_page_info(self, url: str) -> Dict[str, Any]:
-        """Get basic page information without full content"""
-```
-
-### Code Tools API
-
-#### `tools.code_tools.code_executor.CodeExecutor`
-
-```python
-class CodeExecutor:
-    """Safe code execution in sandboxed environment"""
-    
-    def __init__(self, workspace_root: Optional[str] = None):
-        """Initialize code executor with workspace root"""
-        
-    @check_permission(PermissionLevel.HIGH)
-    def execute_code(self, code: str, language: str = "python") -> Dict[str, Any]:
-        """Execute code in sandboxed environment"""
-        
-    def _validate_code(self, code: str, language: str) -> str:
-        """Validate code for security patterns"""
-        
-    def _validate_language(self, language: str) -> None:
-        """Validate supported programming language"""
-```
-
-### Document Tools API
-
-#### `tools.document_tools.document_processor.DocumentProcessor`
-
-```python
-class DocumentProcessor:
-    """Safe document processing with validation and sandboxing"""
-    
-    def __init__(self, workspace_root: Optional[str] = None):
-        """Initialize document processor with workspace root"""
-        
-    @check_permission(PermissionLevel.LOW)
-    def extract_text(self, file_path: str) -> Dict[str, Any]:
-        """Extract text from document"""
-        
-    @check_permission(PermissionLevel.LOW)
-    def summarize_document(self, file_path: str, max_length: int = 500) -> Dict[str, Any]:
-        """Generate document summary"""
-        
-    @check_permission(PermissionLevel.LOW)
-    def search_in_document(self, file_path: str, query: str) -> Dict[str, Any]:
-        """Search for text within document"""
-        
-    @check_permission(PermissionLevel.MEDIUM)
-    def analyze_document(self, file_path: str) -> Dict[str, Any]:
-        """Analyze document structure and metadata"""
-        
-    @check_permission(PermissionLevel.MEDIUM)
-    def convert_document(self, file_path: str, output_format: str) -> Dict[str, Any]:
-        """Convert document to different format"""
-```
-
-### Scheduler Tools API
-
-#### `tools.scheduler_tools.task_scheduler.TaskScheduler`
-
-```python
-class TaskScheduler:
-    """Safe task scheduling with validation and logging"""
-    
-    def __init__(self, workspace_root: Optional[str] = None):
-        """Initialize task scheduler with workspace root"""
-        
-    @check_permission(PermissionLevel.MEDIUM)
-    def schedule_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Schedule a new task"""
-        
-    @check_permission(PermissionLevel.LOW)
-    def list_tasks(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
-        """List scheduled tasks"""
-        
-    @check_permission(PermissionLevel.MEDIUM)
-    def cancel_task(self, task_id: str) -> Dict[str, Any]:
-        """Cancel a scheduled task"""
-        
-    @check_permission(PermissionLevel.LOW)
-    def get_task_status(self, task_id: str) -> Dict[str, Any]:
-        """Get status of a specific task"""
-        
-    @check_permission(PermissionLevel.MEDIUM)
-    def reschedule_task(self, task_id: str, new_time: datetime) -> Dict[str, Any]:
-        """Reschedule existing task"""
-```
-
-## 🔐 Permissions API
-
-### Permission Engine API
-
-#### `permissions.permission_engine.PermissionEngine`
-
-```python
-class PermissionEngine:
-    """Permission validation and management system"""
-    
-    def __init__(self):
-        """Initialize permission engine"""
-        
-    def check_tool_permission(self, required_level: PermissionLevel) -> bool:
-        """Check if user has required permission level"""
-        
-    def set_user_permission_level(self, level: PermissionLevel) -> None:
-        """Set current user permission level"""
-        
-    def get_user_permission_level(self) -> PermissionLevel:
-        """Get current user permission level"""
-        
-    def request_permission(self, operation: str, level: PermissionLevel) -> bool:
-        """Request permission from user"""
-```
-
-#### Permission Decorator
-
-```python
-def check_permission(level: PermissionLevel):
-    """Decorator to enforce permission levels on methods"""
-    
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            # Check permission before execution
-            if not permission_engine.check_tool_permission(level):
-                raise PermissionError(f"Insufficient permissions for {func.__name__}")
-            return func(*args, **kwargs)
-        return wrapper
-    return decorator
-```
-
-## 🤖 Agents API
-
-### Core Agents API
-
-#### `agents.core.planner.Planner`
-
-```python
-class Planner:
-    """Task classification and execution planning"""
-    
-    def analyze_input(self, user_input: str) -> TaskPlan:
-        """Analyze user input and create task plan"""
-        
-    def generate_plan(self, task_type: str, input_data: Dict[str, Any]) -> TaskPlan:
-        """Generate execution plan for task"""
-        
-    def estimate_execution_time(self, plan: TaskPlan) -> float:
-        """Estimate task execution time in seconds"""
-```
-
-#### `agents.core.router.Router`
-
-```python
-class Router:
-    """Task routing and agent selection"""
-    
-    def route_task(self, task_plan: TaskPlan) -> Agent:
-        """Route task to appropriate agent"""
-        
-    def select_agent(self, task_type: str, requirements: Dict[str, Any]) -> Agent:
-        """Select best agent for task"""
-        
-    def balance_load(self, agents: List[Agent]) -> Agent:
-        """Balance load across available agents"""
-```
-
-#### `agents.core.safety.Safety`
-
-```python
-class Safety:
-    """Risk assessment and permission validation"""
-    
-    def assess_risk(self, task: Task) -> RiskLevel:
-        """Assess risk level of task"""
-        
-    def validate_action(self, action: Action) -> bool:
-        """Validate action for safety"""
-        
-    def check_permissions(self, user: User, action: Action) -> bool:
-        """Check user permissions for action"""
-```
-
-### Autonomous Agent API
-
-#### `agents.autonomous.agent_loop.AutonomousAgentLoop`
-
-```python
-class AutonomousAgentLoop:
-    """Autonomous agent with iterative reasoning"""
-    
-    def __init__(self, goal: str, tools: List[Tool]):
-        """Initialize autonomous agent with goal and tools"""
-        
-    async def execute(self) -> Result:
-        """Execute autonomous agent loop"""
-        
-    def think_phase(self) -> Thought:
-        """Analyze current state and plan next steps"""
-        
-    def decide_phase(self) -> Decision:
-        """Select optimal action based on context"""
-        
-    def act_phase(self, decision: Decision) -> ActionResult:
-        """Execute selected action"""
-        
-    def observe_phase(self, result: ActionResult) -> Observation:
-        """Analyze results and update state"""
-```
-
-### Agent Tool Integration API
-
-#### `agents.agent_tool_integration.AgentToolBridge`
-
-```python
-class AgentToolBridge:
-    """Bridge between agents and VoiceOS tools"""
-    
-    def __init__(self, tool_registry: ToolRegistry = None):
-        """Initialize tool bridge"""
-        
-    def get_available_tools_for_agent(self, agent_type: str = "general") -> List[str]:
-        """Get list of available tools for specific agent type"""
-        
-    async def execute_tool_for_agent(self, agent_type: str, tool_name: str, 
-                                   method_name: str = None, **kwargs) -> Dict[str, Any]:
-        """Execute tool for agent with permission checking"""
-        
-    def get_tool_info_for_agent(self, agent_type: str, tool_name: str) -> Optional[Dict[str, Any]]:
-        """Get tool information for agent"""
-```
-
-#### `agents.agent_tool_integration.AgentToolManager`
-
-```python
-class AgentToolManager:
-    """High-level manager for agent tool access"""
-    
-    def __init__(self):
-        """Initialize agent tool manager"""
-        
-    async def execute_agent_task(self, agent_type: str, task_plan: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a task plan for a specific agent type"""
-        
-    def get_agent_capabilities(self, agent_type: str) -> Dict[str, Any]:
-        """Get capabilities summary for agent type"""
-```
-
-## 🔧 Tool Registry API
-
-### Tool Registry API
-
-#### `tools.tool_registry.ToolRegistry`
-
-```python
-class ToolRegistry:
-    """Central tool management and registration system"""
-    
-    def __init__(self):
-        """Initialize tool registry"""
-        
-    def register_tool(self, tool_class: Type) -> bool:
-        """Register tool with registry"""
-        
-    def get_tool(self, tool_name: str) -> Optional[ToolRegistration]:
-        """Get tool registration by name"""
-        
-    def list_tools(self, category: Optional[ToolCategory] = None) -> List[str]:
-        """List all registered tools"""
-        
-    async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Any:
-        """Execute tool with parameters"""
-        
-    def get_tool_info(self, tool_name: str) -> Optional[Dict[str, Any]]:
-        """Get tool information and metadata"""
-```
-
-#### Tool Metadata API
-
-```python
-@dataclass
-class ToolMetadata:
-    """Tool metadata and configuration"""
-    name: str
-    description: str
-    category: ToolCategory
-    version: str
-    author: str
-    dependencies: List[str]
-    safety_level: str
-    async_execution: bool
-    timeout: float
-    tags: List[str]
-
-@dataclass
-class ToolRegistration:
-    """Tool registration information"""
-    tool_class: Type
-    metadata: ToolMetadata
-    status: ToolStatus
-    registration_time: datetime
-    last_used: Optional[datetime]
-    usage_count: int
-```
-
-## 📊 Monitoring API
-
-### Metrics API
-
-#### `core.metrics.MetricsCollector`
-
-```python
-class MetricsCollector:
-    """System metrics collection and reporting"""
-    
-    def collect_execution_metrics(self) -> Dict[str, Any]:
-        """Collect execution performance metrics"""
-        
-    def collect_resource_metrics(self) -> Dict[str, Any]:
-        """Collect system resource usage metrics"""
-        
-    def collect_tool_metrics(self) -> Dict[str, Any]:
-        """Collect tool usage metrics"""
-        
-    def get_health_status(self) -> HealthStatus:
-        """Get overall system health status"""
-```
-
-### Logging API
-
-#### `core.logger.VoiceOSLogger`
-
-```python
-class VoiceOSLogger:
-    """Structured logging for VoiceOS operations"""
-    
-    def log_tool_execution(self, tool_name: str, method: str, result: Any, error: Optional[str] = None):
-        """Log tool execution with structured data"""
-        
-    def log_agent_action(self, agent_type: str, action: str, context: Dict[str, Any]):
-        """Log agent action with context"""
-        
-    def log_security_event(self, event_type: str, details: Dict[str, Any]):
-        """Log security-related events"""
-        
-    def get_logs(self, level: Optional[str] = None, limit: int = 100) -> List[LogEntry]:
-        """Retrieve logs with optional filtering"""
-```
-
-## 🔌 Plugin API
-
-### Plugin System API
-
-#### `plugins.plugin_loader.PluginLoader`
-
-```python
-class PluginLoader:
-    """Dynamic plugin discovery and loading"""
-    
-    def __init__(self, plugin_directory: Path):
-        """Initialize plugin loader"""
-        
-    def discover_plugins(self) -> List[PluginInfo]:
-        """Discover available plugins"""
-        
-    def load_plugin(self, plugin_name: str) -> Plugin:
-        """Load specific plugin"""
-        
-    def validate_plugin(self, plugin_path: Path) -> bool:
-        """Validate plugin for security and compatibility"""
-        
-    def unload_plugin(self, plugin_name: str) -> bool:
-        """Unload plugin"""
-```
-
-#### Plugin Interface
-
-```python
-class Plugin:
-    """Base plugin interface"""
-    
-    @property
-    def name(self) -> str:
-        """Get plugin name"""
-        
-    @property
-    def version(self) -> str:
-        """Get plugin version"""
-        
-    def initialize(self, config: Dict[str, Any]) -> None:
-        """Initialize plugin with configuration"""
-        
-    def get_tools(self) -> List[Tool]:
-        """Get tools provided by plugin"""
-        
-    def cleanup(self) -> None:
-        """Cleanup plugin resources"""
-```
-
-## 🧠 Memory API
-
-### Memory Management API
-
-#### `memory.memory_manager.MemoryManager`
-
-```python
-class MemoryManager:
-    """Memory storage and retrieval system"""
-    
-    def store_memory(self, key: str, value: Any, category: str = "general") -> None:
-        """Store memory with key and category"""
-        
-    def retrieve_memory(self, key: str) -> Optional[Any]:
-        """Retrieve memory by key"""
-        
-    def search_memories(self, query: str, category: Optional[str] = None) -> List[Memory]:
-        """Search memories by query and category"""
-        
-    def get_recent_memories(self, limit: int = 10, category: Optional[str] = None) -> List[Memory]:
-        """Get recent memories"""
-        
-    def cleanup_old_memories(self, max_age: timedelta) -> int:
-        """Clean up old memories"""
-```
-
-## 🎵 Audio API
-
-### Audio Processing API
-
-#### `audio.microphone.Microphone`
-
-```python
-class Microphone:
-    """Microphone input handling"""
-    
-    def __init__(self, device_id: Optional[int] = None):
-        """Initialize microphone with device ID"""
-        
-    def start_recording(self) -> None:
-        """Start recording audio"""
-        
-    def stop_recording(self) -> bytes:
-        """Stop recording and return audio data"""
-        
-    def list_devices(self) -> List[Dict[str, Any]]:
-        """List available audio devices"""
-        
-    def test_microphone(self) -> bool:
-        """Test microphone functionality"""
-```
-
-#### `audio.streaming_stt.StreamingSTT`
-
-```python
-class StreamingSTT:
-    """Streaming speech-to-text processing"""
-    
-    def __init__(self, model_name: str = "base"):
-        """Initialize STT with model"""
-        
-    async def transcribe_stream(self, audio_stream: AsyncIterator[bytes]) -> AsyncIterator[str]:
-        """Transcribe audio stream to text"""
-        
-    def transcribe_file(self, audio_file: Path) -> str:
-        """Transcribe audio file to text"""
-```
-
-#### `audio.tts_controller.TTSController`
-
-```python
-class TTSController:
-    """Text-to-speech processing"""
-    
-    def __init__(self, model_name: str = "ljspeech"):
-        """Initialize TTS with model"""
-        
-    def synthesize(self, text: str, output_file: Optional[Path] = None) -> bytes:
-        """Synthesize text to speech"""
-        
-    async def stream_speak(self, text: str) -> AsyncIterator[bytes]:
-        """Stream synthesized speech"""
-```
-
-## 🔍 LLM API
-
-### LLM Integration API
-
-#### `llm.llm_client.LLMClient`
-
-```python
-class LLMClient:
-    """Large Language Model client interface"""
-    
-    def __init__(self, model_name: str, api_key: Optional[str] = None):
-        """Initialize LLM client"""
-        
-    async def generate_response(self, prompt: str, max_tokens: int = 1000) -> str:
-        """Generate response from prompt"""
-        
-    async def generate_with_context(self, messages: List[Dict[str, str]], max_tokens: int = 1000) -> str:
-        """Generate response with conversation context"""
-        
-    def get_model_info(self) -> Dict[str, Any]:
-        """Get model information"""
-```
-
-#### `llm.conversation_engine.ConversationEngine`
-
-```python
-class ConversationEngine:
-    """Conversation management and context"""
-    
-    def __init__(self, llm_client: LLMClient):
-        """Initialize conversation engine"""
-        
-    def add_message(self, role: str, content: str) -> None:
-        """Add message to conversation"""
-        
-    def get_context(self, max_messages: int = 10) -> List[Dict[str, str]]:
-        """Get conversation context"""
-        
-    async def generate_response(self, user_input: str) -> str:
-        """Generate response with context"""
-        
-    def clear_conversation(self) -> None:
-        """Clear conversation history"""
-```
-
-## 📝 Usage Examples
-
-### Basic Tool Usage
-
-```python
-from tools.file_tools.enhanced_file_manager import EnhancedFileManager
-from permissions.permission_engine import PermissionLevel, permission_engine
-
-# Initialize file manager
-file_manager = EnhancedFileManager()
-
-# Set permission level
-permission_engine.set_user_permission_level(PermissionLevel.MEDIUM)
-
-# Use file operations
-content = file_manager.read_file("example.txt")
-file_manager.write_file("output.txt", "Hello World")
-```
-
-### Agent Integration
-
-```python
-from agents.agent_tool_integration import AgentToolManager
-
-# Initialize agent manager
-agent_manager = AgentToolManager()
-
-# Execute task
-result = await agent_manager.execute_agent_task(
-    agent_type="autonomous",
-    task_plan={
-        "steps": [
-            {
-                "tool": "enhanced_file_manager",
-                "method": "write_file",
-                "parameters": {"path": "test.txt", "content": "Hello"}
-            }
-        ]
-    }
-)
-```
-
-### Tool Registration
-
-```python
-from tools.voiceos_tools_integration import VoiceOSToolsIntegration
-from tools.tool_registry import ToolRegistry
-
-# Initialize integration
-tool_registry = ToolRegistry()
-integration = VoiceOSToolsIntegration(tool_registry)
-
-# Register tools
-registered_count = integration.register_voiceos_tools()
-print(f"Registered {registered_count} tools")
+        """Load configuration from a YAML file"""
 ```
 
 ---
 
-## � Core Integration Systems API
+### `core.config_manager.ConfigManager`
 
-### Plugin System API
+Loads and manages the main `voiceos.yaml` configuration.
 
-#### Complete Plugin Integration
+```python
+class ConfigManager:
+    def __init__(self, config_file: str = "config/voiceos.yaml"):
+        """Initialize with path to the YAML config file"""
+
+    def get_config(self) -> VoiceOSConfig:
+        """Return the parsed VoiceOS configuration dataclass"""
+
+    def reload(self) -> None:
+        """Reload configuration from file (picks up changes without restart)"""
+```
+
+---
+
+### `core.events.event_bus.EventBus`
+
+Async pub/sub event bus — the backbone of inter-component communication.
+
+```python
+class EventBus:
+    def subscribe(self, event_type: str, callback: Callable[[Event], Awaitable]) -> str:
+        """Subscribe to an event type. Returns subscription_id."""
+
+    def unsubscribe(self, subscription_id: str) -> None:
+        """Cancel a subscription by ID"""
+
+    async def publish(self, event: Event) -> None:
+        """Publish an event to all subscribers (async, non-blocking)"""
+
+    def publish_sync(self, event: Event) -> None:
+        """Publish an event synchronously (blocks until all handlers complete)"""
+```
+
+**Event types** (from `core.events.events.Events`):
+
+```python
+class Events:
+    USER_VOICE_INPUT       = "user.voice_input"
+    USER_CLI_INPUT         = "user.cli_input"
+    ORCHESTRATOR_RESPONSE  = "orchestrator.response"
+    TASK_STARTED           = "task.started"
+    TASK_COMPLETED         = "task.completed"
+    TASK_FAILED            = "task.failed"
+    INTERRUPT_REQUESTED    = "interrupt.requested"
+    TTS_STARTED            = "tts.started"
+    TTS_STOPPED            = "tts.stopped"
+    AGENT_ACTION           = "agent.action"
+    PERMISSION_REQUESTED   = "permission.requested"
+    PERMISSION_GRANTED     = "permission.granted"
+    PERMISSION_DENIED      = "permission.denied"
+```
+
+---
+
+### `core.event.Event`
+
+Base event dataclass published on the EventBus.
+
+```python
+@dataclass
+class Event:
+    type: str                         # Event type string (from Events enum)
+    payload: Dict[str, Any]           # Event data
+    source: str                       # Publisher identifier
+    timestamp: datetime = field(default_factory=datetime.utcnow)
+    event_id: str = field(default_factory=lambda: str(uuid4()))
+```
+
+---
+
+### `core.orchestrator.Orchestrator`
+
+The top-level coordinator that processes user inputs and drives the agent/tool pipeline.
+
+```python
+class Orchestrator:
+    def __init__(
+        self,
+        event_bus: EventBus,
+        tool_executor: ToolExecutor,
+        permission_engine: PermissionEngine,
+        config: OrchestratorConfig,
+        agent_llm: LLMClient,
+        runtime_context: RuntimeContext,
+    ):
+        """Initialize orchestrator with all required subsystems"""
+
+    async def process_input(self, user_input: str, source: str = "cli") -> str:
+        """Process a user command and return the response text"""
+
+    async def health_check(self) -> Dict[str, Any]:
+        """Check health status of all subsystems. Returns {'status': 'ok'|'degraded'|'error'}"""
+
+    def get_metrics(self) -> Dict[str, Any]:
+        """Get performance metrics (total requests, success rate, etc.)"""
+```
+
+**OrchestratorConfig:**
+
+```python
+@dataclass
+class OrchestratorConfig:
+    enable_interrupts: bool = True
+    max_execution_time: float = 300.0       # seconds
+    enable_workspace_isolation: bool = True
+    enable_agent_memory: bool = True
+    safety_mode: str = "strict"             # "strict" | "permissive"
+```
+
+---
+
+### `core.logger.VoiceOSLogger`
+
+Structured JSON logger for all VoiceOS components.
+
+```python
+class VoiceOSLogger:
+    def log_tool_execution(
+        self,
+        tool_name: str,
+        method: str,
+        result: Any,
+        error: Optional[str] = None,
+        execution_time: float = 0.0
+    ) -> None:
+        """Log a tool execution with structured data"""
+
+    def log_agent_action(
+        self,
+        agent_type: str,
+        action: str,
+        context: Dict[str, Any]
+    ) -> None:
+        """Log an agent's reasoning step or action"""
+
+    def log_security_event(
+        self,
+        event_type: str,
+        details: Dict[str, Any]
+    ) -> None:
+        """Log security-relevant events (permission checks, denials, etc.)"""
+
+    def get_logs(
+        self,
+        level: Optional[str] = None,
+        limit: int = 100,
+        since: Optional[datetime] = None
+    ) -> List[Dict[str, Any]]:
+        """Retrieve recent log entries with optional filtering"""
+```
+
+---
+
+## 🛠️ Tools API
+
+### `tools.file_tools.enhanced_file_manager.EnhancedFileManager`
+
+See **[Tool API Reference](tool_api.md)** for full documentation.
+
+Quick reference:
+
+```python
+class EnhancedFileManager:
+    def read_file(self, path: str) -> str                              # LOW
+    def write_file(self, path: str, content: str) -> str              # MEDIUM
+    def create_file(self, path: str) -> str                           # MEDIUM
+    def delete_file(self, path: str) -> str                           # HIGH
+    def list_directory(self, path: str = ".") -> List[Dict[str, Any]] # LOW
+    def file_exists(self, path: str) -> bool                          # LOW
+```
+
+### `tools.web_tools.browser_tool.BrowserTool`
+
+```python
+class BrowserTool:
+    def search_web(self, query: str, max_results: int = 10) -> List[Dict[str, Any]] # LOW
+    def open_page(self, url: str) -> Dict[str, Any]                                  # MEDIUM
+    def scrape_content(self, url: str, selectors: Optional[List[str]] = None) -> Dict[str, Any] # MEDIUM
+    def get_page_info(self, url: str) -> Dict[str, Any]                              # LOW
+```
+
+### `tools.code_tools.code_executor.CodeExecutor`
+
+```python
+class CodeExecutor:
+    def execute_code(self, code: str, language: str = "python") -> Dict[str, Any]   # HIGH
+```
+
+### `tools.document_tools.document_processor.DocumentProcessor`
+
+```python
+class DocumentProcessor:
+    def extract_text(self, file_path: str) -> Dict[str, Any]                        # LOW
+    def summarize_document(self, file_path: str, max_length: int = 500) -> Dict[str, Any] # LOW
+    def search_in_document(self, file_path: str, query: str) -> Dict[str, Any]      # LOW
+    def analyze_document(self, file_path: str) -> Dict[str, Any]                    # MEDIUM
+    def convert_document(self, file_path: str, output_format: str) -> Dict[str, Any] # MEDIUM
+```
+
+### `tools.scheduler_tools.task_scheduler.TaskScheduler`
+
+```python
+class TaskScheduler:
+    def schedule_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]            # MEDIUM
+    def list_tasks(self, status: Optional[str] = None) -> List[Dict[str, Any]]      # LOW
+    def get_task_status(self, task_id: str) -> Dict[str, Any]                       # LOW
+    def cancel_task(self, task_id: str) -> Dict[str, Any]                           # MEDIUM
+    def reschedule_task(self, task_id: str, new_time: datetime) -> Dict[str, Any]   # MEDIUM
+```
+
+---
+
+## 🔐 Permissions API
+
+### `permissions.permission_engine.PermissionEngine`
+
+```python
+class PermissionEngine:
+    def check_tool_permission(self, required_level: PermissionLevel) -> bool:
+        """Check if current permission level allows the required level"""
+
+    def set_user_permission_level(self, level: PermissionLevel) -> None:
+        """Override the active permission level"""
+
+    def get_user_permission_level(self) -> PermissionLevel:
+        """Get the current active permission level"""
+
+    async def request_permission(
+        self,
+        operation: str,
+        level: PermissionLevel,
+        context: Dict[str, Any] = None
+    ) -> bool:
+        """Interactively prompt the user for permission. Returns True if granted."""
+```
+
+### `PermissionLevel` Enum
+
+```python
+from permissions.permission_engine import PermissionLevel
+
+PermissionLevel.LOW     # Read operations — silent allow
+PermissionLevel.MEDIUM  # Write/network operations — user confirmation
+PermissionLevel.HIGH    # Destructive/exec operations — explicit approval
+```
+
+### `check_permission` Decorator
+
+```python
+from permissions.permission_engine import check_permission, PermissionLevel
+
+@check_permission(PermissionLevel.MEDIUM)
+def my_write_function(path: str, content: str) -> str:
+    """This function will check permission before executing"""
+    ...
+```
+
+---
+
+## 🤖 Agents API
+
+### `agents.core.planner.Planner`
+
+```python
+class Planner:
+    async def analyze_input(self, user_input: str) -> TaskPlan:
+        """Analyze and classify user input into a TaskPlan"""
+
+    async def generate_plan(
+        self,
+        task_type: str,
+        input_data: Dict[str, Any]
+    ) -> TaskPlan:
+        """Generate a detailed execution plan"""
+
+    def estimate_execution_time(self, plan: TaskPlan) -> float:
+        """Estimate task duration in seconds"""
+```
+
+**TaskPlan dataclass:**
+
+```python
+@dataclass
+class TaskPlan:
+    type: str                          # "simple" | "complex" | "autonomous"
+    goal: str                          # User's original intent
+    domain: Optional[str] = None       # "researcher" | "developer" | "analyst"
+    tool: Optional[str] = None         # For simple tasks: specific tool name
+    estimated_time: float = 0.0
+    required_permissions: List[PermissionLevel] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+```
+
+---
+
+### `agents.core.router.Router`
+
+```python
+class Router:
+    async def route_task(self, task_plan: TaskPlan) -> Any:
+        """Route a classified task to the appropriate executor"""
+
+    def select_dynamic_agent(
+        self,
+        domain: str,
+        requirements: Dict[str, Any]
+    ) -> DynamicAgent:
+        """Select the best dynamic agent for the domain"""
+
+    async def coordinate_parallel(
+        self,
+        sub_tasks: List[TaskPlan]
+    ) -> List[Result]:
+        """Execute multiple sub-tasks in parallel (Meta-Planner)"""
+```
+
+---
+
+### `agents.core.safety.Safety`
+
+```python
+class Safety:
+    async def assess_risk(self, task: TaskPlan) -> RiskLevel:
+        """Assess the risk level of a task plan"""
+
+    def validate_action(self, action: Dict[str, Any]) -> Tuple[bool, str]:
+        """Validate a proposed action. Returns (is_safe, reason)."""
+
+    def check_path_safety(self, path: str) -> bool:
+        """Check if a file path is safe (within workspace, not blocked)"""
+
+    def check_code_safety(self, code: str) -> Tuple[bool, List[str]]:
+        """Check code for dangerous patterns. Returns (is_safe, violations)."""
+```
+
+---
+
+### `agents.autonomous.agent_loop.AutonomousAgentLoop`
+
+```python
+class AutonomousAgentLoop:
+    def __init__(
+        self,
+        goal: str,
+        tools: List[str],
+        workspace_id: str,
+        max_iterations: int = 20,
+        max_time_seconds: float = 300.0
+    ):
+        """Initialize the autonomous loop with a goal and available tools"""
+
+    async def execute(self) -> AutonomousResult:
+        """Run the think → decide → act → observe loop until goal met or limits hit"""
+
+    async def think_phase(self) -> Thought:
+        """Analyze state, completed actions, and plan the next step"""
+
+    async def decide_phase(self, thought: Thought) -> Decision:
+        """Select the optimal action based on the thought"""
+
+    async def act_phase(self, decision: Decision) -> ActionResult:
+        """Execute the chosen action (tool call or code execution)"""
+
+    async def observe_phase(self, result: ActionResult) -> Observation:
+        """Assess results and update task state"""
+
+    async def generate_tool(self, tool_spec: str) -> str:
+        """Generate a new tool on-the-fly using the LLM"""
+```
+
+**AutonomousResult:**
+
+```python
+@dataclass
+class AutonomousResult:
+    success: bool
+    goal: str
+    iterations: int
+    total_time: float
+    artifacts: List[str]           # Paths to created files
+    summary: str
+    actions_taken: List[str]       # Human-readable action log
+```
+
+---
+
+### `agents.agent_tool_integration.AgentToolManager`
+
+High-level manager for agent-initiated tool execution.
+
+```python
+class AgentToolManager:
+    async def execute_agent_task(
+        self,
+        agent_type: str,
+        task_plan: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Execute a task plan for a specific agent type"""
+
+    def get_agent_capabilities(self, agent_type: str) -> Dict[str, Any]:
+        """Get a summary of what tools and capabilities an agent type has"""
+
+    async def execute_tool_for_agent(
+        self,
+        agent_type: str,
+        tool_name: str,
+        method_name: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Execute a specific tool method on behalf of an agent (with permission check)"""
+```
+
+---
+
+## 🔧 Tool Registry API
+
+### `tools.tool_registry.ToolRegistry`
+
+```python
+class ToolRegistry:
+    def register_tool(self, tool_class: Type) -> bool:
+        """Register a tool class. Returns True on success."""
+
+    def get_tool(self, tool_name: str) -> Optional[ToolRegistration]:
+        """Get the registration record for a tool"""
+
+    def list_tools(self, category: Optional[ToolCategory] = None) -> List[str]:
+        """List all registered tool names, optionally filtered by category"""
+
+    async def execute_tool(
+        self,
+        tool_name: str,
+        parameters: Dict[str, Any]
+    ) -> Any:
+        """Execute a tool by name with given parameters"""
+
+    def get_tool_info(self, tool_name: str) -> Optional[Dict[str, Any]]:
+        """Get tool metadata, permission level, and available methods"""
+```
+
+**ToolCategory enum:**
+
+```python
+class ToolCategory:
+    FILE_OPERATIONS
+    WEB_OPERATIONS
+    CODE_EXECUTION
+    DOCUMENT_PROCESSING
+    TASK_SCHEDULING
+    OS_CONTROL
+    COMMUNICATION
+    UTILITY
+```
+
+---
+
+## 🎵 Audio API
+
+### `audio.voice_pipeline.VoicePipeline`
+
+```python
+class VoicePipeline:
+    def __init__(
+        self,
+        event_bus: EventBus,
+        speech_state: SpeechState,
+        voice_config: VoiceConfig
+    ):
+        """Initialize voice pipeline with bus, state tracker, and config"""
+
+    async def start(self) -> None:
+        """Start microphone capture and STT streaming"""
+
+    async def stop(self) -> None:
+        """Stop microphone and release audio resources"""
+```
+
+---
+
+### `audio.streaming_stt.StreamingSTT`
+
+```python
+class StreamingSTT:
+    def __init__(self, model_name: str = "base"):
+        """Initialize with Whisper model name: tiny|base|small|medium|large"""
+
+    async def transcribe_stream(
+        self,
+        audio_stream: AsyncIterator[bytes]
+    ) -> AsyncIterator[str]:
+        """Stream audio chunks and yield transcription fragments"""
+
+    def transcribe_file(self, audio_file: Path) -> str:
+        """Transcribe a saved audio file and return full text"""
+```
+
+---
+
+### `interrupt.tts_controller.TTSController`
+
+```python
+class TTSController:
+    def __init__(
+        self,
+        event_bus: EventBus,
+        tts_engine: TTSEngine,
+        speech_state: SpeechState
+    ):
+        """Initialize TTS controller"""
+
+    async def speak(self, text: str) -> None:
+        """Synthesize text and play through speakers (interruptible)"""
+
+    def stop(self) -> None:
+        """Immediately stop current TTS playback"""
+
+    def is_speaking(self) -> bool:
+        """True if TTS is currently playing audio"""
+```
+
+---
+
+### TTS Engine Factory
+
+```python
+# tts/engine_factory.py
+def create_tts_engine(voice_config: VoiceConfig) -> TTSEngine:
+    """Create the appropriate TTS engine based on configuration.
+    Returns KokoroEngine by default, CoquiEngine if configured."""
+```
+
+---
+
+## 🔍 LLM API
+
+### `llm.llm_client.LLMClient`
+
+```python
+class LLMClient:
+    def __init__(
+        self,
+        model_name: str,
+        endpoint: Optional[str] = None,
+        api_key: Optional[str] = None
+    ):
+        """Initialize LLM client (supports local GGUF, Ollama, OpenAI-compatible APIs)"""
+
+    async def generate_response(
+        self,
+        prompt: str,
+        max_tokens: int = 1000,
+        temperature: float = 0.7,
+        stop: Optional[List[str]] = None
+    ) -> str:
+        """Generate a single response from a prompt"""
+
+    async def generate_with_context(
+        self,
+        messages: List[Dict[str, str]],
+        max_tokens: int = 1000,
+        temperature: float = 0.7
+    ) -> str:
+        """Generate response with chat history (list of {role, content} dicts)"""
+
+    def get_model_info(self) -> Dict[str, Any]:
+        """Return model name, provider, context length, and capabilities"""
+```
+
+**Messages format:**
+```python
+messages = [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "What is Python?"},
+    {"role": "assistant", "content": "Python is a programming language..."},
+    {"role": "user", "content": "Give me an example"},
+]
+```
+
+---
+
+### `llm.conversation_engine.ConversationEngine`
+
+```python
+class ConversationEngine:
+    def __init__(self, llm_client: LLMClient, max_history: int = 20):
+        """Initialize conversation engine with LLM client"""
+
+    def add_message(self, role: str, content: str) -> None:
+        """Append a message to conversation history"""
+
+    def get_context(self, max_messages: int = 10) -> List[Dict[str, str]]:
+        """Get recent conversation history for LLM context window"""
+
+    async def generate_response(self, user_input: str) -> str:
+        """Generate a contextual response to user input"""
+
+    def clear_conversation(self) -> None:
+        """Reset conversation history"""
+```
+
+---
+
+## 🧠 Memory API
+
+### `memory.memory_manager.MemoryManager`
+
+```python
+class MemoryManager:
+    def store_memory(
+        self,
+        key: str,
+        value: Any,
+        category: str = "general",
+        importance: float = 0.5,
+        tags: List[str] = None
+    ) -> str:
+        """Store a value with metadata. Returns the memory key."""
+
+    def retrieve_memory(self, key: str) -> Optional[Any]:
+        """Retrieve a value by exact key"""
+
+    def search_memories(
+        self,
+        query: str,
+        category: Optional[str] = None,
+        limit: int = 10
+    ) -> List[MemoryEntry]:
+        """Full-text search across all memory entries"""
+
+    def semantic_search(
+        self,
+        query: str,
+        threshold: float = 0.7
+    ) -> List[MemoryEntry]:
+        """Vector similarity search (requires ChromaDB)"""
+
+    def get_recent_memories(
+        self,
+        limit: int = 10,
+        category: Optional[str] = None
+    ) -> List[MemoryEntry]:
+        """Get recently stored or accessed entries"""
+
+    def update_memory(
+        self,
+        key: str,
+        value: Any,
+        importance: Optional[float] = None
+    ) -> bool:
+        """Update an existing entry"""
+
+    def delete_memory(self, key: str) -> bool:
+        """Delete a memory entry by key"""
+
+    def cleanup_old_memories(self, max_age: timedelta) -> int:
+        """Remove entries older than max_age. Returns count deleted."""
+```
+
+---
+
+## 🔌 Plugin API
+
+### `plugins.plugin_loader.PluginLoader`
+
+```python
+class PluginLoader:
+    def __init__(self, plugin_directory: Path):
+        """Initialize with path to plugins directory"""
+
+    def discover_plugins(self) -> List[PluginInfo]:
+        """Scan directory and return list of available plugins"""
+
+    def load_plugin(self, plugin_name: str) -> Plugin:
+        """Load and initialize a specific plugin"""
+
+    def validate_plugin(self, plugin_path: Path) -> Tuple[bool, List[str]]:
+        """Validate plugin for security and compatibility. Returns (valid, errors)."""
+
+    def unload_plugin(self, plugin_name: str) -> bool:
+        """Gracefully unload a plugin and release its resources"""
+
+    def list_loaded_plugins(self) -> List[str]:
+        """Return names of all currently loaded plugins"""
+```
+
+### Plugin Interface
+
+```python
+class Plugin:
+    """Base interface all VoiceOS plugins must implement"""
+
+    @property
+    def name(self) -> str: ...
+    @property
+    def version(self) -> str: ...
+    @property
+    def description(self) -> str: ...
+
+    async def initialize(self, config: Dict[str, Any]) -> None:
+        """Initialize plugin with system configuration"""
+
+    def get_tools(self) -> List[Tool]:
+        """Return list of tools this plugin contributes"""
+
+    async def cleanup(self) -> None:
+        """Release all plugin resources gracefully"""
+```
+
+---
+
+## 🔧 Core Integration Systems API
+
+### Plugin System
 
 ```python
 from core.plugins.complete_plugin_integration import get_complete_plugin_system
 
-# Get plugin system instance
-plugin_system = get_complete_plugin_system()
-
-# Enable a plugin
-result = await plugin_system.enable_plugin("my_plugin")
-
-# Disable a plugin
-result = await plugin_system.disable_plugin("my_plugin")
-
-# Get system status
-status = await plugin_system.get_system_status()
+system = get_complete_plugin_system()
+await system.enable_plugin("my_plugin")
+await system.disable_plugin("my_plugin")
+status = await system.get_system_status()
 ```
 
-#### Plugin Registry
+### Plugin Registry
 
 ```python
 from core.plugins.plugin_registry import get_plugin_registry
 
-# Get registry instance
 registry = get_plugin_registry()
-
-# Discover plugins
 discovered = await registry.discover_plugins()
-
-# Register plugin
 result = await registry.register_plugin(plugin_path)
-
-# Get registry state
 state = registry.get_registry_state()
 ```
 
-#### Plugin Lifecycle
+### Plugin Lifecycle
 
 ```python
 from core.plugins.plugin_lifecycle import get_lifecycle_manager
 
-# Get lifecycle manager
 lifecycle = get_lifecycle_manager()
-
-# Load plugin
-result = await lifecycle.load_plugin("my_plugin")
-
-# Activate plugin
-result = await lifecycle.activate_plugin("my_plugin")
-
-# Suspend plugin
-result = await lifecycle.suspend_plugin("my_plugin", "Maintenance")
+await lifecycle.load_plugin("my_plugin")
+await lifecycle.activate_plugin("my_plugin")
+await lifecycle.suspend_plugin("my_plugin", reason="Maintenance")
 ```
 
-### Helper System API
+**Plugin states:** `DISCOVERED → LOADING → LOADED → INITIALIZING → ACTIVE → SUSPENDED`
 
-#### Secure Helper Integration
+### Plugin Configuration
 
 ```python
-from core.helpers.secure_helper_integration import get_secure_helper_adapter
+from core.plugins.plugin_configuration import get_plugin_config_manager, ConfigScope
 
-# Get helper adapter
-adapter = get_secure_helper_adapter()
-
-# Register helper module
-result = await adapter.register_helper_module("my_helpers", "/path/to/helpers")
-
-# Get registered helpers
-helpers = adapter.get_registered_helpers()
-
-# Execute helper function
-result = await adapter.execute_helper("my_helpers", "my_function", args, kwargs)
+config = get_plugin_config_manager()
+await config.set_config("my_plugin", "key", "value", ConfigScope.GLOBAL)
+value = await config.get_config("my_plugin", "key", ConfigScope.GLOBAL)
 ```
 
-#### Helper Bridge Integration
+**Config scopes:** `GLOBAL`, `PLUGIN`, `USER`, `WORKSPACE`, `SESSION`
+
+### Extension System
 
 ```python
-from core.helpers.helper_bridge_integration import get_helper_bridge_manager
-from tools.tool_registry import ToolRegistry
-
-# Get bridge manager
-tool_registry = ToolRegistry()
-bridge_manager = get_helper_bridge_manager(tool_registry)
-
-# Create bridge
-result = await bridge_manager.create_bridge(
-    helper_name="my_helpers",
-    function_name="my_function",
-    voiceos_tool_name="my_tool",
-    bridge_mode=BridgeMode.WRAPPED
+from core.extensions.extension_point_system import (
+    before_tool_execution, after_tool_execution,
+    before_llm_request, after_llm_response,
+    data_processing, error_handling, logging_decorator
 )
 
-# Execute bridge
-result = await bridge_manager.execute_bridge("my_helpers.my_function", args, kwargs)
-```
-
-### Extension System API
-
-#### Secure Extension Integration
-
-```python
-from core.extensions.secure_extension_integration import get_secure_extension_manager
-
-# Get extension manager
-manager = get_secure_extension_manager()
-
-# Register extension
-result = await manager.register_extension("my_extension", extension_path)
-
-# Execute extension
-result = await manager.execute_extension("my_extension", ExtensionPoint.BEFORE_TOOL_EXECUTION, context)
-
-# Get registered extensions
-extensions = manager.get_registered_extensions()
-```
-
-#### Extension Point System
-
-```python
-from core.extensions.extension_point_system import get_extension_point_system
-
-# Get extension point system
-system = get_extension_point_system()
-
-# Register extension hook
-system.register_hook(ExtensionPoint.BEFORE_TOOL_EXECUTION, my_hook_function, priority=HookPriority.HIGH)
-
-# Execute extension point
-result = await system.execute_extension_point(ExtensionPoint.BEFORE_TOOL_EXECUTION, context)
-
-# Use decorators
 @before_tool_execution
-async def my_tool_hook(context):
-    print("Before tool execution")
+async def my_hook(context: Dict[str, Any]) -> Dict[str, Any]:
+    """Runs before any tool execution"""
+    context["start_time"] = time.time()
+    return context
+
+@after_tool_execution
+async def my_after_hook(context: Dict[str, Any]) -> Dict[str, Any]:
+    """Runs after any tool execution"""
+    duration = time.time() - context.get("start_time", time.time())
+    print(f"Tool took {duration:.2f}s")
+    return context
 ```
 
-### Integration Framework API
+**Extension points:** `BEFORE_TOOL_EXECUTION`, `AFTER_TOOL_EXECUTION`, `BEFORE_LLM_REQUEST`, `AFTER_LLM_RESPONSE`, `DATA_PROCESSING`, `USER_INPUT_VALIDATION`, `ERROR_HANDLING`, `LOGGING_EXTENSION`, `SYSTEM_STARTUP`, `SYSTEM_SHUTDOWN`
 
-#### Integration Patterns
-
-```python
-from core.integration.integration_patterns import get_integration_manager
-
-# Get integration manager
-manager = get_integration_manager(event_bus, tool_registry)
-
-# Create integration contract
-contract = IntegrationContract(
-    interface_name="my_interface",
-    required_methods=["execute", "validate"],
-    security_policy=SecurityPolicy.RESTRICTED
-)
-
-# Register integration
-result = await manager.register_integration("my_integration", contract)
-```
-
-#### Controlled Execution
+### Controlled Execution
 
 ```python
-from core.integration.controlled_execution import get_controlled_execution_manager
+from core.integration.controlled_execution import get_controlled_execution_manager, ExecutionLimits
 
-# Get execution manager
 manager = get_controlled_execution_manager()
-
-# Execute with limits
 result = await manager.execute_with_limits(
     target_function,
-    args,
-    kwargs,
+    args=(arg1, arg2),
+    kwargs={"key": "val"},
     limits=ExecutionLimits(
         max_execution_time=30.0,
         max_memory_mb=512,
@@ -897,69 +854,169 @@ result = await manager.execute_with_limits(
 )
 ```
 
-### Monitoring System API
-
-#### Performance Monitor
-
-```python
-from core.monitoring.performance_monitor import get_performance_monitor
-
-# Get performance monitor
-monitor = get_performance_monitor()
-
-# Record metric
-monitor.record_metric("operation_time", 1.5, {"operation": "tool_execution"})
-
-# Get metrics
-metrics = monitor.get_metrics()
-
-# Get system health
-health = monitor.get_system_health()
-```
-
-#### Error Recovery
-
-```python
-from core.monitoring.error_recovery import get_error_recovery
-
-# Get error recovery
-recovery = get_error_recovery()
-
-# Handle error
-result = await recovery.handle_error(error, context)
-
-# Get error statistics
-stats = recovery.get_error_statistics()
-```
-
-### Unified Dashboard API
+### Unified Dashboard
 
 ```python
 from core.system.unified_integration_dashboard import get_unified_integration_dashboard
 
-# Get dashboard
 dashboard = get_unified_integration_dashboard()
+status = dashboard.get_system_status()     # Overall system health
+metrics = dashboard.get_system_metrics()   # Real-time performance metrics
+views = dashboard.get_available_views()    # OVERVIEW | PLUGINS | HELPERS | ...
+```
 
-# Get system status
-status = dashboard.get_system_status()
+### System Verification
 
-# Get system metrics
-metrics = dashboard.get_system_metrics()
+```python
+from core.system.system_verification import VoiceOSSystemVerification
 
-# Get available views
-views = dashboard.get_available_views()
+verifier = VoiceOSSystemVerification()
+results = await verifier.verify_all_systems()
+
+if results.overall_status == "PASSED":
+    print("All systems ready!")
+else:
+    for component, result in results.component_results.items():
+        if result.status != "PASSED":
+            print(f"  {component}: {result.message}")
 ```
 
 ---
 
-## �🔗 Related Documentation
+## 📝 Usage Examples
 
-- [Setup Guide](setup.md)
-- [Architecture Overview](architecture.md)
-- [Agent System](agents.md)
-- [Usage Guide](usage.md)
-- [VoiceOS Tools Integration](voiceos_tools_integration_guide.md)
+### Basic Tool Usage
+
+```python
+from tools.file_tools.enhanced_file_manager import enhanced_file_manager
+from tools.web_tools.browser_tool import browser_tool
+from permissions.permission_engine import PermissionLevel, permission_engine
+
+# Set permission level (skip interactive prompts in scripts)
+permission_engine.set_user_permission_level(PermissionLevel.MEDIUM)
+
+# File operations
+enhanced_file_manager.write_file("output/result.txt", "Hello, VoiceOS!")
+content = enhanced_file_manager.read_file("output/result.txt")
+
+# Web research
+results = browser_tool.search_web("Python asyncio tutorial", max_results=3)
+for r in results:
+    print(f"{r['title']}: {r['url']}")
+```
 
 ---
 
-**API documentation is continuously updated. Check for new features and changes regularly!**
+### Running the Full Orchestrator
+
+```python
+import asyncio
+from core.events.event_bus import EventBus
+from core.orchestrator import Orchestrator, OrchestratorConfig
+from core.runtime.bootstrap import build_runtime_context
+from core.config_manager import ConfigManager
+
+async def main():
+    config_manager = ConfigManager("config/voiceos.yaml")
+    config = config_manager.get_config()
+
+    bus = EventBus()
+    orchestrator_config = OrchestratorConfig(
+        enable_interrupts=True,
+        max_execution_time=300.0,
+        enable_workspace_isolation=True,
+        enable_agent_memory=True,
+        safety_mode="strict",
+    )
+
+    ctx = build_runtime_context(config, bus, safety_mode="strict")
+    orchestrator = Orchestrator(
+        event_bus=bus,
+        tool_executor=ctx.tool_executor,
+        permission_engine=ctx.permission_engine,
+        config=orchestrator_config,
+        agent_llm=ctx.agent_llm,
+        runtime_context=ctx,
+    )
+
+    response = await orchestrator.process_input("Write a Python hello world script")
+    print(response)
+
+asyncio.run(main())
+```
+
+---
+
+### Agent Tool Manager Usage
+
+```python
+from agents.agent_tool_integration import AgentToolManager
+import asyncio
+
+async def main():
+    manager = AgentToolManager()
+
+    result = await manager.execute_agent_task(
+        agent_type="developer",
+        task_plan={
+            "steps": [
+                {
+                    "tool": "enhanced_file_manager",
+                    "method": "write_file",
+                    "parameters": {
+                        "path": "hello.py",
+                        "content": "print('Hello, World!')"
+                    }
+                },
+                {
+                    "tool": "code_executor",
+                    "method": "execute_code",
+                    "parameters": {
+                        "code": "exec(open('hello.py').read())",
+                        "language": "python"
+                    }
+                }
+            ]
+        }
+    )
+    print(result)
+
+asyncio.run(main())
+```
+
+---
+
+### Creating and Loading a Plugin
+
+```python
+# my_plugin/plugin.py
+from core.plugins.secure_plugin_integration import VoiceOSPluginInterface
+
+class MyPlugin(VoiceOSPluginInterface):
+    def __init__(self):
+        super().__init__(
+            name="my_plugin",
+            version="1.0.0",
+            description="Example custom plugin",
+            author="Your Name"
+        )
+
+    async def initialize(self, context):
+        self.logger.info("MyPlugin initialized")
+
+    async def execute(self, command: str, context: Dict) -> Optional[str]:
+        if command == "hello":
+            return "Hello from MyPlugin!"
+        return None
+
+    async def cleanup(self):
+        self.logger.info("MyPlugin cleaned up")
+```
+
+```python
+# Load the plugin
+from core.plugins.complete_plugin_integration import get_complete_plugin_system
+
+system = get_complete_plugin_system()
+await system.enable_plugin("my_plugin")
+```

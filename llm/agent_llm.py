@@ -5,12 +5,15 @@ Provides streaming responses, model configuration, and token management
 
 import asyncio
 import logging
+import os
+import json
+import time
+from pathlib import Path
 from typing import Dict, Any, List, Optional, AsyncGenerator, Union
 from dataclasses import dataclass, field
 from enum import Enum
-import time
-import json
-from pathlib import Path
+from llm.model_paths import get_llm_model_path
+from llm.llm_service import LLMService
 
 logger = logging.getLogger(__name__)
 
@@ -66,36 +69,40 @@ class TokenUsage:
     cost: float = 0.0
 
 class AgentLLM:
-    def __init__(self, default_config: ModelConfig = None):
+    def __init__(self, default_config: ModelConfig = None, api_base: Optional[str] = None):
+        model_path = get_llm_model_path()
+        self.api_base = api_base or os.getenv("VOICEOS_LLM_API_BASE") or os.getenv("LLM_ENDPOINT")
         self.default_config = default_config or ModelConfig(
             name="mistral-7b-instruct",
             model_type=ModelType.LOCAL,
-            model_path="models/mistral-7b-instruct.gguf"
+            model_path=model_path,
         )
-        
-        # Model configurations by agent type
+
         self.agent_configs = {
             "researcher": ModelConfig(
                 name="mistral-7b-instruct",
                 model_type=ModelType.LOCAL,
-                temperature=0.3,  # Lower temperature for research
+                model_path=model_path,
+                temperature=0.3,
                 max_tokens=2048,
-                response_format=ResponseFormat.STRUCTURED
+                response_format=ResponseFormat.STRUCTURED,
             ),
             "developer": ModelConfig(
                 name="mistral-7b-instruct",
                 model_type=ModelType.LOCAL,
-                temperature=0.1,  # Very low temperature for code
+                model_path=model_path,
+                temperature=0.1,
                 max_tokens=4096,
-                response_format=ResponseFormat.TEXT
+                response_format=ResponseFormat.TEXT,
             ),
             "analyst": ModelConfig(
                 name="mistral-7b-instruct",
                 model_type=ModelType.LOCAL,
+                model_path=model_path,
                 temperature=0.5,
                 max_tokens=3072,
-                response_format=ResponseFormat.JSON
-            )
+                response_format=ResponseFormat.JSON,
+            ),
         }
         
         # Token usage tracking
@@ -116,6 +123,42 @@ class AgentLLM:
         # Response cache
         self.response_cache: Dict[str, LLMResponse] = {}
         self.cache_ttl = 300  # 5 minutes
+        self.llm_service = LLMService(
+            provider=self.default_config.model_type.value,
+            model_name=self.default_config.name,
+            model_path=self.default_config.model_path,
+            api_base=self.api_base,
+            temperature=self.default_config.temperature,
+            max_tokens=self.default_config.max_tokens,
+            timeout=self.default_config.timeout,
+        )
+
+    @classmethod
+    def from_voiceos_config(cls, llm_config) -> "AgentLLM":
+        """Build AgentLLM from VoiceOS YAML llm section."""
+        model_path = get_llm_model_path()
+        model_type = (
+            ModelType.API
+            if getattr(llm_config, "provider", "local") in ("api", "remote")
+            else ModelType.LOCAL
+        )
+        default = ModelConfig(
+            name=getattr(llm_config, "model_name", "mistral-7b-instruct"),
+            model_type=model_type,
+            model_path=model_path,
+            temperature=getattr(llm_config, "temperature", 0.7),
+            max_tokens=getattr(llm_config, "max_tokens", 4096),
+            timeout=getattr(llm_config, "timeout", 30.0),
+            api_key=getattr(llm_config, "api_key", None),
+        )
+        instance = cls(default_config=default, api_base=getattr(llm_config, "api_base", None))
+        instance.llm_service = LLMService.from_voiceos_config(llm_config)
+        for role in instance.agent_configs:
+            cfg = instance.agent_configs[role]
+            cfg.name = default.name
+            cfg.model_type = model_type
+            cfg.model_path = model_path
+        return instance
     
     async def generate_response(self, request: LLMRequest) -> LLMResponse:
         """
@@ -251,124 +294,91 @@ class AgentLLM:
             yield f"Error: {str(e)}"
     
     async def _stream_local_model(self, request: LLMRequest) -> AsyncGenerator[str, None]:
-        """
-        Stream from local model (e.g., llama.cpp)
-        """
-        try:
-            # This would integrate with llama-cpp-python or similar
-            # For now, simulate streaming response
-            
-            messages = request.messages
-            system_prompt = ""
-            user_messages = []
-            
-            for msg in messages:
-                if msg["role"] == "system":
-                    system_prompt = msg["content"]
-                elif msg["role"] == "user":
-                    user_messages.append(msg["content"])
-            
-            # Simulate model response
-            prompt = "\n".join(user_messages)
-            
-            # Simulate streaming chunks
-            response_text = self._simulate_model_response(prompt, request.model_config)
-            
-            for chunk in self._chunk_content(response_text):
-                yield chunk
-                await asyncio.sleep(0.01)  # Simulate processing delay
-                
-        except Exception as e:
-            logger.error(f"Local model streaming failed: {e}")
-            yield f"Error: {str(e)}"
+        """Stream from local model via unified LLMService."""
+        role = request.metadata.get("agent_role", "general")
+        async for chunk in self.llm_service.stream_messages(request.messages, role=role):
+            yield chunk
     
     async def _stream_api_model(self, request: LLMRequest) -> AsyncGenerator[str, None]:
         """
-        Stream from API model (e.g., OpenAI)
+        Stream from a remote API (Ollama-compatible generate endpoint).
         """
-        try:
-            # This would integrate with OpenAI API or similar
-            # For now, fall back to local simulation
-            async for chunk in self._stream_local_model(request):
-                yield chunk
-                
-        except Exception as e:
-            logger.error(f"API model streaming failed: {e}")
-            yield f"Error: {str(e)}"
+        base = self.api_base or os.getenv("VOICEOS_LLM_API_BASE") or os.getenv("LLM_ENDPOINT")
+        if base:
+            try:
+                async for chunk in self._stream_ollama(request, base):
+                    yield chunk
+                return
+            except Exception as e:
+                logger.warning("Remote LLM stream failed, using local fallback: %s", e)
+        async for chunk in self._stream_local_model(request):
+            yield chunk
+
+    def _ollama_generate_url(self, base_url: str) -> str:
+        url = base_url.rstrip("/")
+        if url.endswith("/api/generate"):
+            return url
+        if "/api/" in url:
+            return url.split("/api/")[0] + "/api/generate"
+        return url + "/api/generate"
+
+    def _messages_to_prompt(self, messages: List[Dict[str, str]]) -> str:
+        parts = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if content:
+                parts.append(f"{role}: {content}")
+        return "\n".join(parts)
+
+    async def _stream_ollama(self, request: LLMRequest, base_url: str) -> AsyncGenerator[str, None]:
+        import requests
+
+        url = self._ollama_generate_url(base_url)
+        model = request.model_config.name
+        prompt = self._messages_to_prompt(request.messages)
+
+        def collect_tokens():
+            tokens = []
+            response = requests.post(
+                url,
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": True,
+                    "options": {"temperature": request.model_config.temperature},
+                },
+                stream=True,
+                timeout=request.model_config.timeout or 120,
+            )
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                data = json.loads(line.decode("utf-8") if isinstance(line, bytes) else line)
+                token = data.get("response", "")
+                if token:
+                    tokens.append(token)
+                if data.get("done"):
+                    break
+            return tokens
+
+        tokens = await asyncio.to_thread(collect_tokens)
+        for token in tokens:
+            yield token
+            await asyncio.sleep(0.005)
     
     async def _stream_hybrid_model(self, request: LLMRequest) -> AsyncGenerator[str, None]:
-        """
-        Stream from hybrid model (local + API)
-        """
+        """Try local then API via LLMService hybrid path."""
+        saved = self.llm_service.provider
         try:
-            # Try local first, fallback to API
-            async for chunk in self._stream_local_model(request):
+            from llm.llm_service import LLMProvider
+            self.llm_service.provider = LLMProvider.HYBRID
+            role = request.metadata.get("agent_role", "general")
+            async for chunk in self.llm_service.stream_messages(request.messages, role=role):
                 yield chunk
-                
-        except Exception as e:
-            logger.warning(f"Local model failed, trying API: {e}")
-            async for chunk in self._stream_api_model(request):
-                yield chunk
-    
-    def _simulate_model_response(self, prompt: str, config: ModelConfig) -> str:
-        """
-        Simulate model response for testing
-        """
-        # Simple simulation based on prompt content
-        if "research" in prompt.lower():
-            return """I'll help you research this topic. Let me search for relevant information and provide you with a comprehensive analysis.
-
-Based on my analysis, here are the key findings:
-
-1. **Primary Results**: The topic shows significant interest in the research community
-2. **Recent Developments**: There have been several breakthroughs in this area
-3. **Expert Opinions**: Leading researchers suggest promising future directions
-
-Would you like me to dive deeper into any specific aspect of this research?"""
-        
-        elif "code" in prompt.lower() or "develop" in prompt.lower():
-            return """I'll help you develop a solution. Let me analyze the requirements and create appropriate code.
-
-Here's my approach:
-
-```python
-def solve_problem():
-    """
-    Implement solution based on requirements
-    """
-    # Step 1: Analyze the problem
-    requirements = analyze_requirements()
-    
-    # Step 2: Design solution
-    solution = design_solution(requirements)
-    
-    # Step 3: Implement
-    return implement_solution(solution)
-
-if __name__ == "__main__":
-    result = solve_problem()
-    print(f"Result: {result}")
-```
-
-This implementation provides a clean, modular approach that can be easily extended. Let me know if you'd like me to elaborate on any specific part."""
-        
-        else:
-            return """I understand your request. Let me process this information and provide you with a thoughtful response.
-
-Based on the context you've provided, I can see this requires careful consideration of multiple factors. Here's my analysis:
-
-**Key Points:**
-- The situation involves several interconnected elements
-- There are both opportunities and challenges to consider
-- A systematic approach would be most effective
-
-**Recommendations:**
-1. Start with a clear assessment of the current state
-2. Identify the most critical factors to address
-3. Develop a step-by-step action plan
-4. Monitor progress and adjust as needed
-
-Would you like me to elaborate on any of these points or focus on a specific aspect?"""
+        finally:
+            self.llm_service.provider = saved
     
     def _chunk_content(self, content: str, chunk_size: int = 50) -> List[str]:
         """

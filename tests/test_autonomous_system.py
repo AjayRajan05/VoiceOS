@@ -258,10 +258,10 @@ def execute_tool(parameters):
         tool1_file = workspace1 / "tools" / "tool1.py"
         tool2_file = workspace2 / "tools" / "tool2.py"
         
-        assert tool1_file.exists(), "Tool 1 should be in workspace 1"
-        assert tool2_file.exists(), "Tool 2 should be in workspace 2"
-        assert not tool2_file.exists(), "Tool 2 should not be in workspace 1"
-        assert not tool1_file.exists(), "Tool 1 should not be in workspace 2"
+        assert (workspace1 / "tools" / "tool1.py").exists(), "Tool 1 should be in workspace 1"
+        assert (workspace2 / "tools" / "tool2.py").exists(), "Tool 2 should be in workspace 2"
+        assert not (workspace1 / "tools" / "tool2.py").exists(), "Tool 2 should not be in workspace 1"
+        assert not (workspace2 / "tools" / "tool1.py").exists(), "Tool 1 should not be in workspace 2"
     
     @pytest.mark.asyncio
     async def test_logging_and_tracking(self, autonomous_components):

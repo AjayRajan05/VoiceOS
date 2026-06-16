@@ -22,6 +22,13 @@ class Environment(Enum):
     STAGING = "staging"
 
 @dataclass
+class DistributedConfig:
+    redis_url: str = "redis://localhost:6379/0"
+    queue_name: str = "voiceos_tasks"
+    task_timeout: float = 120.0
+    auto_detect_redis: bool = True
+
+@dataclass
 class DatabaseConfig:
     host: str = "localhost"
     port: int = 5432
@@ -56,6 +63,7 @@ class AgentConfig:
 class VoiceConfig:
     stt_model: str = "whisper-tiny"
     tts_model: str = "coqui-tts"
+    tts_engine: str = "auto"
     sample_rate: int = 16000
     chunk_size: int = 1024
     enable_backchannel: bool = True
@@ -103,6 +111,7 @@ class VoiceOSConfig:
     security: SecurityConfig = field(default_factory=SecurityConfig)
     performance: PerformanceConfig = field(default_factory=PerformanceConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
+    distributed: DistributedConfig = field(default_factory=DistributedConfig)
     
     # Paths
     models_path: str = "models"
@@ -117,6 +126,7 @@ class VoiceOSConfig:
     enable_tool_registry: bool = True
     enable_event_handlers: bool = True
     enable_safety_checks: bool = True
+    execution_mode: str = "local"
 
 class ConfigManager:
     def __init__(self, config_file: str = None, environment: Environment = None):
@@ -212,6 +222,9 @@ class ConfigManager:
             
             if "logging" in config_data:
                 self._update_dataclass(self.config.logging, config_data["logging"])
+
+            if "distributed" in config_data:
+                self._update_dataclass(self.config.distributed, config_data["distributed"])
             
             # Update paths
             path_keys = ["models_path", "workspace_path", "memory_path", "logs_path", "config_path"]
@@ -222,7 +235,8 @@ class ConfigManager:
             # Update feature flags
             feature_keys = [
                 "enable_workspace_isolation", "enable_agent_memory", 
-                "enable_tool_registry", "enable_event_handlers", "enable_safety_checks"
+                "enable_tool_registry", "enable_event_handlers", "enable_safety_checks",
+                "execution_mode",
             ]
             for key in feature_keys:
                 if key in config_data:
@@ -329,9 +343,12 @@ class ConfigManager:
                 "VOICEOS_MAX_AGENTS": ("agents.max_concurrent_agents", int),
                 "VOICEOS_LLM_MODEL": ("llm.model_name", str),
                 "VOICEOS_LLM_PATH": ("llm.model_path", str),
+                "VOICEOS_LLM_API_BASE": ("llm.api_base", str),
                 "VOICEOS_DB_HOST": ("database.host", str),
                 "VOICEOS_DB_PORT": ("database.port", int),
-                "VOICEOS_ENABLE_AUTH": ("security.enable_authentication", bool)
+                "VOICEOS_ENABLE_AUTH": ("security.enable_authentication", bool),
+                "REDIS_URL": ("distributed.redis_url", str),
+                "EXECUTION_MODE": ("execution_mode", str),
             }
             
             for env_var, (config_path, value_type) in env_overrides.items():

@@ -169,14 +169,14 @@ class AutonomousToolExecutor:
             )
             
             if permission_required:
-                # Request permission
-                # In a real implementation, this would wait for user input
-                # For now, auto-approve safe operations
-                granted = tool.safety_level == "low"
-                
+                granted = await self.permission_engine.prompt_for_approval(
+                    f"execute_tool_{tool.name}",
+                    [tool.name],
+                    f"Execute autonomous tool {tool.name} with {parameters}",
+                )
                 return {
                     "granted": granted,
-                    "reason": "Auto-approved" if granted else "Requires explicit approval"
+                    "reason": "User approved" if granted else "User denied",
                 }
             else:
                 return {

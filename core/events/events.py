@@ -47,3 +47,4 @@ class Events:
     TASK_ROUTED = "task_routed"
     TASK_COMPLETED = "task_completed"
     TASK_FAILED = "task_failed"
+    EXECUTION_CANCELLED = "execution_cancelled"

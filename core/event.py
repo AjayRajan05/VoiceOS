@@ -32,6 +32,11 @@ class Event:
             source (optional): Event source identifier
         """
         self.type = type
-        self.payload = payload
+        self.payload = payload or {}
         self.source = source
         self.timestamp = time.time()
+
+    @property
+    def data(self):
+        """Backward-compatible alias for payload."""
+        return self.payload

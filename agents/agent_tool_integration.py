@@ -21,23 +21,34 @@ class AgentToolBridge:
     """
     
     def __init__(self, tool_registry: ToolRegistry = None):
-        self.tool_registry = tool_registry or ToolRegistry()
+        if tool_registry is None:
+            tool_registry = ToolRegistry()
+            initialize_voiceos_tools_integration(tool_registry)
+        self.tool_registry = tool_registry
         self.voiceos_tools_integration = None
         self.logger = logging.getLogger(__name__)
-        
-        # Initialize VoiceOS tools integration
         self._initialize_voiceos_tools()
+    
+    def set_registry(self, tool_registry: ToolRegistry):
+        """Attach a shared registry (called from main.py)."""
+        self.tool_registry = tool_registry
+        self.voiceos_tools_integration = VoiceOSToolsIntegration(tool_registry)
     
     def _initialize_voiceos_tools(self):
         """Initialize VoiceOS tools integration"""
+        if self.tool_registry is None:
+            return
         try:
-            self.voiceos_tools_integration = initialize_voiceos_tools_integration(self.tool_registry)
+            if not self.voiceos_tools_integration:
+                self.voiceos_tools_integration = initialize_voiceos_tools_integration(self.tool_registry)
             self.logger.info("VoiceOS tools initialized successfully")
         except Exception as e:
             self.logger.error(f"Failed to initialize VoiceOS tools: {e}")
     
     def get_available_tools_for_agent(self, agent_type: str = "general") -> List[str]:
         """Get list of available tools for specific agent type"""
+        if self.tool_registry is None:
+            return []
         all_tools = self.tool_registry.list_tools()
         
         # Filter tools based on agent type and permissions
@@ -160,7 +171,7 @@ class AgentToolBridge:
                     "description": tool_info["description"],
                     "category": tool_info["category"],
                     "safety_level": tool_info["safety_level"],
-                    "methods": tool_info.get("agent_zero_methods", [])
+                    "methods": tool_info.get("runtime_methods", [])
                 }
                 
                 # Count by category
@@ -175,8 +186,8 @@ class AgentToolManager:
     High-level manager for agent tool access
     """
     
-    def __init__(self):
-        self.tool_bridge = AgentToolBridge()
+    def __init__(self, tool_registry: ToolRegistry = None):
+        self.tool_bridge = AgentToolBridge(tool_registry)
         self.logger = logging.getLogger(__name__)
         
         # Agent configurations
@@ -262,5 +273,15 @@ class AgentToolManager:
         return self.tool_bridge.get_agent_tool_summary(agent_type)
 
 
-# Global agent tool manager instance
+# Global agent tool manager instance (registry injected from main.py)
 agent_tool_manager = AgentToolManager()
+
+
+def configure_agent_tools(tool_registry: ToolRegistry, permission_engine=None) -> AgentToolManager:
+    """Wire shared tool registry and permission engine into agent tool manager."""
+    from permissions.permission_engine import set_permission_engine
+
+    if permission_engine is not None:
+        set_permission_engine(permission_engine)
+    agent_tool_manager.tool_bridge.set_registry(tool_registry)
+    return agent_tool_manager

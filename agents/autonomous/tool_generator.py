@@ -14,6 +14,7 @@ from pathlib import Path
 import tempfile
 import uuid
 import sys
+import time
 
 from agents.autonomous.state_manager import AutonomousStateManager, ActionType
 from agents.core.safety import SafetyModule
@@ -52,7 +53,8 @@ class AutonomousToolGenerator:
         # Safety patterns to avoid
         self.dangerous_patterns = [
             r'import\s+os\.system',
-            r'import\s+subprocess\.call',
+            r'os\.system\s*\(',
+            r'subprocess\.(call|run|Popen)\s*\(',
             r'eval\s*\(',
             r'exec\s*\(',
             r'__import__\s*\(',
@@ -70,7 +72,8 @@ class AutonomousToolGenerator:
             'datetime', 'time', 'random', 'collections', 'itertools',
             'functools', 'operator', 'string', 'textwrap', 'pathlib',
             'pandas', 'numpy', 'matplotlib', 'seaborn', 'requests',
-            'beautifulsoup4', 'lxml', 'urllib', 'http', 'ssl'
+            'beautifulsoup4', 'bs4', 'lxml', 'urllib', 'http', 'ssl',
+            'logging', 'typing',
         }
     
     async def generate_tool(self, task_id: str, tool_type: str, 

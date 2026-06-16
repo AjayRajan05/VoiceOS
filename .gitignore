@@ -306,3 +306,5 @@ releases/
 *.lock
 *.state
 *.status
+
+summary.md

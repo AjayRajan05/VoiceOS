@@ -5,9 +5,9 @@ style: analytical and methodical
 max_steps: 12
 timeout: 180.0
 tools:
-  - code_editor
-  - file_manager
-  - test_runner
+  - enhanced_file_manager
+  - code_executor
+  - ide_workflow
   - web_search
   - text_processor
 

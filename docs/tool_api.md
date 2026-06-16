@@ -1,787 +1,834 @@
-# 🛠️ VoiceOS Tools API Reference
+# 🛠️ VoiceOS Tool API Reference
 
-This document provides detailed API documentation for all VoiceOS native tools, their methods, and usage patterns.
+Detailed API documentation for all five native VoiceOS tool classes, their methods, parameters, return values, and usage examples.
+
+---
 
 ## Overview
 
-VoiceOS provides a comprehensive suite of native tools that enable secure, sandboxed operations across multiple domains including file management, web browsing, code execution, document processing, and task scheduling.
+VoiceOS provides five native tool classes, all registered in the `ToolRegistry` and gated by the `PermissionEngine`:
 
-## Tool Categories
+| Tool Class | Module | Category |
+|-----------|--------|---------|
+| `EnhancedFileManager` | `tools.file_tools.enhanced_file_manager` | File Operations |
+| `BrowserTool` | `tools.web_tools.browser_tool` | Web Browsing |
+| `CodeExecutor` | `tools.code_tools.code_executor` | Code Execution |
+| `DocumentProcessor` | `tools.document_tools.document_processor` | Document Processing |
+| `TaskScheduler` | `tools.scheduler_tools.task_scheduler` | Task Scheduling |
 
-### 1. File Operations Tools
-- **Enhanced File Manager**: Secure file operations within workspace boundaries
-- **Location**: `tools.file_tools.enhanced_file_manager`
+All tools:
+- Accept a `workspace_root` parameter (defaults to `project_root/workspace`)
+- Enforce workspace boundary — operations outside workspace raise `ValueError`
+- Use `@check_permission(PermissionLevel.XXX)` decorators on every method
+- Log all operations to `workspace/logs/[tool]_operations.log`
 
-### 2. Web Tools
-- **Browser Tool**: Safe web browsing and content scraping
-- **Location**: `tools.web_tools.browser_tool`
+---
 
-### 3. Code Tools
-- **Code Executor**: Sandboxed code execution with resource limits
-- **Location**: `tools.code_tools.code_executor`
-
-### 4. Document Tools
-- **Document Processor**: Document analysis and processing
-- **Location**: `tools.document_tools.document_processor`
-
-### 5. Scheduler Tools
-- **Task Scheduler**: Task scheduling and management
-- **Location**: `tools.scheduler_tools.task_scheduler`
-
-## Enhanced File Manager API
-
-### Class Definition
+## Permission Levels
 
 ```python
-class EnhancedFileManager:
-    """Safe file operations within workspace boundaries"""
+from permissions.permission_engine import PermissionLevel
+
+PermissionLevel.LOW     # Silent allow — read operations, searches
+PermissionLevel.MEDIUM  # User confirmation required — writes, web access
+PermissionLevel.HIGH    # Explicit approval required — deletes, code execution
 ```
+
+---
+
+## EnhancedFileManager
+
+Safe file operations strictly within workspace boundaries.
+
+**Module**: `tools.file_tools.enhanced_file_manager`  
+**Import**: `from tools.file_tools.enhanced_file_manager import enhanced_file_manager`
 
 ### Constructor
 
 ```python
-def __init__(self, workspace_root: Optional[str] = None):
-    """
-    Initialize file manager with workspace root directory.
-    
-    Args:
-        workspace_root (Optional[str]): Path to workspace directory.
-            Defaults to project_root/workspace if not specified.
-    """
+EnhancedFileManager(workspace_root: Optional[str] = None)
 ```
 
-### Methods
+- `workspace_root`: Absolute path to workspace directory. Defaults to `{project_root}/workspace`.
 
-#### read_file
+---
+
+### `read_file(path)`
+
 ```python
 @check_permission(PermissionLevel.LOW)
-def read_file(self, path: str) -> str:
-    """
-    Safely read file within workspace.
-    
-    Args:
-        path (str): Relative path to file within workspace
-        
-    Returns:
-        str: File contents as UTF-8 text
-        
-    Raises:
-        FileNotFoundError: If file does not exist
-        PermissionError: If user lacks read permissions
-        ValueError: If path is outside workspace
-        
-    Example:
-        >>> file_manager = EnhancedFileManager()
-        >>> content = file_manager.read_file("data.txt")
-        >>> print(content)
-        "Hello World"
-    """
+def read_file(self, path: str) -> str
 ```
 
-#### write_file
+Read a file's content as UTF-8 text.
+
+**Parameters:**
+- `path` — Relative path to file within workspace (e.g., `"data/config.json"`)
+
+**Returns:** File content as string
+
+**Raises:**
+- `FileNotFoundError` — File does not exist
+- `ValueError` — Path resolves outside workspace
+- `PermissionError` — Insufficient permission
+
+**Example:**
+```python
+content = enhanced_file_manager.read_file("config/settings.json")
+print(content)
+```
+
+---
+
+### `write_file(path, content)`
+
 ```python
 @check_permission(PermissionLevel.MEDIUM)
-def write_file(self, path: str, content: str) -> str:
-    """
-    Safely write file within workspace.
-    
-    Args:
-        path (str): Relative path to file within workspace
-        content (str): Content to write to file
-        
-    Returns:
-        str: Success message with file path
-        
-    Raises:
-        PermissionError: If user lacks write permissions
-        ValueError: If path is outside workspace
-        
-    Example:
-        >>> file_manager = EnhancedFileManager()
-        >>> result = file_manager.write_file("output.txt", "Hello World")
-        >>> print(result)
-        "File written to output.txt"
-    """
+def write_file(self, path: str, content: str) -> str
 ```
 
-#### create_file
+Write text content to a file, creating parent directories if needed.
+
+**Parameters:**
+- `path` — Relative path within workspace
+- `content` — Text content to write
+
+**Returns:** Success message string (e.g., `"File written to config/settings.json"`)
+
+**Raises:**
+- `ValueError` — Path resolves outside workspace
+- `PermissionError` — Write permission denied
+
+**Example:**
+```python
+result = enhanced_file_manager.write_file(
+    "output/report.md",
+    "# Analysis Report\n\n## Findings\n..."
+)
+print(result)  # "File written to output/report.md"
+```
+
+---
+
+### `create_file(path)`
+
 ```python
 @check_permission(PermissionLevel.MEDIUM)
-def create_file(self, path: str) -> str:
-    """
-    Create empty file within workspace.
-    
-    Args:
-        path (str): Relative path to file within workspace
-        
-    Returns:
-        str: Success message with file path
-        
-    Example:
-        >>> file_manager = EnhancedFileManager()
-        >>> result = file_manager.create_file("new_file.txt")
-        >>> print(result)
-        "File created at new_file.txt"
-    """
+def create_file(self, path: str) -> str
 ```
 
-#### delete_file
+Create an empty file (touches the file, creating parent directories).
+
+**Parameters:**
+- `path` — Relative path within workspace
+
+**Returns:** Success message string
+
+**Example:**
+```python
+result = enhanced_file_manager.create_file("scripts/runner.py")
+```
+
+---
+
+### `delete_file(path)`
+
 ```python
 @check_permission(PermissionLevel.HIGH)
-def delete_file(self, path: str) -> str:
-    """
-    Delete file within workspace (requires high permission).
-    
-    Args:
-        path (str): Relative path to file within workspace
-        
-    Returns:
-        str: Success message with file path
-        
-    Raises:
-        FileNotFoundError: If file does not exist
-        PermissionError: If user lacks delete permissions
-        
-    Example:
-        >>> file_manager = EnhancedFileManager()
-        >>> result = file_manager.delete_file("old_file.txt")
-        >>> print(result)
-        "File deleted: old_file.txt"
-    """
+def delete_file(self, path: str) -> str
 ```
 
-#### list_directory
+Permanently delete a file from the workspace.
+
+**Parameters:**
+- `path` — Relative path within workspace
+
+**Returns:** Success message string
+
+**Raises:**
+- `FileNotFoundError` — File does not exist
+- `PermissionError` — Delete permission denied (requires HIGH level + explicit approval)
+
+**Example:**
+```python
+result = enhanced_file_manager.delete_file("temp/old_data.csv")
+```
+
+---
+
+### `list_directory(path=".")`
+
 ```python
 @check_permission(PermissionLevel.LOW)
-def list_directory(self, path: str = ".") -> List[Dict[str, Any]]:
-    """
-    List directory contents within workspace.
-    
-    Args:
-        path (str): Relative path to directory within workspace.
-            Defaults to workspace root.
-            
-    Returns:
-        List[Dict[str, Any]]: List of directory items with metadata
-        
-    Example:
-        >>> file_manager = EnhancedFileManager()
-        >>> items = file_manager.list_directory()
-        >>> for item in items:
-        ...     print(f"{item['name']} ({item['type']})")
-        "data.txt (file)"
-        "logs/ (directory)"
-    """
+def list_directory(self, path: str = ".") -> List[Dict[str, Any]]
 ```
 
-#### file_exists
+List contents of a directory within the workspace.
+
+**Parameters:**
+- `path` — Relative path to directory (defaults to workspace root)
+
+**Returns:** List of dictionaries with file metadata:
+```python
+[
+    {"name": "data.csv", "type": "file", "size": 1024, "modified": "2026-06-15T10:00:00"},
+    {"name": "output/", "type": "directory", "size": 0, "modified": "2026-06-15T09:30:00"},
+]
+```
+
+**Example:**
+```python
+items = enhanced_file_manager.list_directory("output")
+for item in items:
+    print(f"{item['name']} ({item['type']}, {item['size']} bytes)")
+```
+
+---
+
+### `file_exists(path)`
+
 ```python
 @check_permission(PermissionLevel.LOW)
-def file_exists(self, path: str) -> bool:
-    """
-    Check if file exists within workspace.
-    
-    Args:
-        path (str): Relative path to file within workspace
-        
-    Returns:
-        bool: True if file exists, False otherwise
-        
-    Example:
-        >>> file_manager = EnhancedFileManager()
-        >>> exists = file_manager.file_exists("data.txt")
-        >>> print(exists)
-        True
-    """
+def file_exists(self, path: str) -> bool
 ```
 
-## Browser Tool API
+Check whether a file exists within the workspace.
 
-### Class Definition
+**Parameters:**
+- `path` — Relative path within workspace
 
+**Returns:** `True` if exists, `False` otherwise
+
+**Example:**
 ```python
-class BrowserTool:
-    """Safe web browsing and scraping with security constraints"""
+if enhanced_file_manager.file_exists("config/settings.json"):
+    config = enhanced_file_manager.read_file("config/settings.json")
 ```
+
+---
+
+## BrowserTool
+
+Safe web browsing, searching, and content scraping with URL validation and content size limits.
+
+**Module**: `tools.web_tools.browser_tool`  
+**Import**: `from tools.web_tools.browser_tool import browser_tool`
 
 ### Constructor
 
 ```python
-def __init__(self, workspace_root: Optional[str] = None):
-    """
-    Initialize browser tool with workspace root directory.
-    
-    Args:
-        workspace_root (Optional[str]): Path to workspace directory.
-            Defaults to project_root/workspace if not specified.
-    """
+BrowserTool(workspace_root: Optional[str] = None)
 ```
 
-### Methods
+---
 
-#### open_page
-```python
-@check_permission(PermissionLevel.MEDIUM)
-def open_page(self, url: str) -> Dict[str, Any]:
-    """
-    Safely open web page and retrieve content.
-    
-    Args:
-        url (str): URL of the web page to open
-        
-    Returns:
-        Dict[str, Any]: Page content including status code, content, and headers
-        
-    Raises:
-        ValueError: If URL is invalid or blocked
-        PermissionError: If user lacks web access permissions
-        
-    Example:
-        >>> browser = BrowserTool()
-        >>> result = browser.open_page("https://example.com")
-        >>> print(f"Status: {result['status_code']}")
-        "Status: 200"
-    """
-```
+### `search_web(query, max_results=10)`
 
-#### scrape_content
-```python
-@check_permission(PermissionLevel.MEDIUM)
-def scrape_content(self, url: str, selectors: Optional[List[str]] = None) -> Dict[str, Any]:
-    """
-    Scrape content from web page with optional CSS selectors.
-    
-    Args:
-        url (str): URL of the web page to scrape
-        selectors (Optional[List[str]]): CSS selectors for content filtering
-        
-    Returns:
-        Dict[str, Any]: Scraped content with metadata
-        
-    Example:
-        >>> browser = BrowserTool()
-        >>> result = browser.scrape_content(
-        ...     "https://example.com", 
-        ...     selectors=[".content", ".title"]
-        ... )
-        >>> print(f"Content length: {len(result['content'])}")
-        "Content length: 1024"
-    """
-```
-
-#### search_web
 ```python
 @check_permission(PermissionLevel.LOW)
-def search_web(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
-    """
-    Perform web search (using safe search endpoints).
-    
-    Args:
-        query (str): Search query
-        max_results (int): Maximum number of results to return
-        
-    Returns:
-        List[Dict[str, Any]]: Search results with titles, URLs, and snippets
-        
-    Example:
-        >>> browser = BrowserTool()
-        >>> results = browser.search_web("Python tutorials")
-        >>> for result in results[:3]:
-        ...     print(f"Title: {result['title']}")
-        "Title: Python Tutorial for Beginners"
-        "Title: Advanced Python Programming"
-        "Title: Python Best Practices"
-    """
+def search_web(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]
 ```
 
-#### get_page_info
+Perform a web search using DuckDuckGo.
+
+**Parameters:**
+- `query` — Search query string
+- `max_results` — Maximum number of results (default: 10)
+
+**Returns:**
+```python
+[
+    {
+        "title": "Python Tutorial for Beginners",
+        "url": "https://example.com/python-tutorial",
+        "snippet": "Learn Python from scratch with...",
+        "source": "example.com"
+    },
+    ...
+]
+```
+
+**Example:**
+```python
+results = browser_tool.search_web("Python async programming best practices", max_results=5)
+for r in results:
+    print(f"{r['title']} — {r['url']}")
+```
+
+---
+
+### `open_page(url)`
+
+```python
+@check_permission(PermissionLevel.MEDIUM)
+def open_page(self, url: str) -> Dict[str, Any]
+```
+
+Fetch a web page and return its readable content.
+
+**Parameters:**
+- `url` — Full URL of the page (must be `http://` or `https://`)
+
+**Returns:**
+```python
+{
+    "url": "https://example.com",
+    "status_code": 200,
+    "title": "Example Page",
+    "content": "Full readable text content...",
+    "content_length": 15234
+}
+```
+
+**Raises:**
+- `ValueError` — Invalid URL or blocked domain
+- `PermissionError` — Insufficient permission
+
+**Example:**
+```python
+page = browser_tool.open_page("https://docs.python.org/3/")
+print(f"Title: {page['title']}")
+print(f"Content length: {page['content_length']} chars")
+```
+
+---
+
+### `scrape_content(url, selectors=None)`
+
+```python
+@check_permission(PermissionLevel.MEDIUM)
+def scrape_content(self, url: str, selectors: Optional[List[str]] = None) -> Dict[str, Any]
+```
+
+Scrape specific content from a web page using CSS selectors.
+
+**Parameters:**
+- `url` — Full URL of the page
+- `selectors` — Optional list of CSS selectors to extract specific elements
+
+**Returns:**
+```python
+{
+    "url": "https://example.com",
+    "content": "Extracted text from selected elements...",
+    "elements": {"h1": ["Title"], ".article": ["Body text"]},
+    "metadata": {"word_count": 512, "links": 23}
+}
+```
+
+**Example:**
+```python
+result = browser_tool.scrape_content(
+    "https://news.ycombinator.com",
+    selectors=[".titleline", ".score"]
+)
+```
+
+---
+
+### `get_page_info(url)`
+
 ```python
 @check_permission(PermissionLevel.LOW)
-def get_page_info(self, url: str) -> Dict[str, Any]:
-    """
-    Get basic page information without full content.
-    
-    Args:
-        url (str): URL of the web page
-        
-    Returns:
-        Dict[str, Any]: Page information including status and headers
-        
-    Example:
-        >>> browser = BrowserTool()
-        >>> info = browser.get_page_info("https://example.com")
-        >>> print(f"Accessible: {info['accessible']}")
-        "Accessible: True"
-    """
+def get_page_info(self, url: str) -> Dict[str, Any]
 ```
 
-## Code Executor API
+Get basic page information without fetching full content (fast HEAD request).
 
-### Class Definition
+**Parameters:**
+- `url` — URL to check
 
+**Returns:**
 ```python
-class CodeExecutor:
-    """Safe code execution in sandboxed environment"""
+{
+    "url": "https://example.com",
+    "accessible": True,
+    "status_code": 200,
+    "content_type": "text/html",
+    "content_length": 15234
+}
 ```
+
+**Example:**
+```python
+info = browser_tool.get_page_info("https://api.example.com/health")
+if info["accessible"] and info["status_code"] == 200:
+    data = browser_tool.open_page("https://api.example.com/data")
+```
+
+---
+
+## CodeExecutor
+
+Sandboxed code execution with security validation, resource limits, and output capture.
+
+**Module**: `tools.code_tools.code_executor`  
+**Import**: `from tools.code_tools.code_executor import code_executor`
+
+> ⚠️ All `execute_code` calls require **HIGH permission** and explicit user approval.
 
 ### Constructor
 
 ```python
-def __init__(self, workspace_root: Optional[str] = None):
-    """
-    Initialize code executor with workspace root directory.
-    
-    Args:
-        workspace_root (Optional[str]): Path to workspace directory.
-            Defaults to project_root/workspace if not specified.
-    """
+CodeExecutor(workspace_root: Optional[str] = None)
 ```
 
-### Methods
+---
 
-#### execute_code
+### `execute_code(code, language="python")`
+
 ```python
 @check_permission(PermissionLevel.HIGH)
-def execute_code(self, code: str, language: str = "python") -> Dict[str, Any]:
-    """
-    Execute code in sandboxed environment.
-    
-    Args:
-        code (str): Code to execute
-        language (str): Programming language (python, bash, javascript)
-        
-    Returns:
-        Dict[str, Any]: Execution result including output and error information
-        
-    Raises:
-        ValueError: If code contains dangerous patterns
-        PermissionError: If user lacks code execution permissions
-        
-    Example:
-        >>> executor = CodeExecutor()
-        >>> result = executor.execute_code("print('Hello World')", "python")
-        >>> print(result['output'])
-        "Hello World"
-    """
+def execute_code(self, code: str, language: str = "python") -> Dict[str, Any]
 ```
 
-## Document Processor API
+Execute code in a sandboxed subprocess within the workspace.
 
-### Class Definition
+**Parameters:**
+- `code` — Source code to execute
+- `language` — Programming language: `"python"`, `"bash"`, `"javascript"` (default: `"python"`)
 
+**Returns:**
 ```python
-class DocumentProcessor:
-    """Safe document processing with validation and sandboxing"""
+{
+    "success": True,
+    "output": "Hello, World!\n",
+    "error": None,
+    "execution_time": 0.35,
+    "exit_code": 0,
+    "language": "python"
+}
 ```
+
+On failure:
+```python
+{
+    "success": False,
+    "output": "",
+    "error": "NameError: name 'x' is not defined",
+    "execution_time": 0.1,
+    "exit_code": 1,
+    "language": "python"
+}
+```
+
+**Security checks performed before execution:**
+- Scans for dangerous imports (`os.system`, `subprocess.call`, `__import__`, etc.)
+- Validates language is in the supported list
+- Enforces execution time limit (default: 30 seconds)
+- Enforces memory limit (default: 256 MB)
+
+**Example:**
+```python
+code = """
+import json
+
+data = [{"name": "Alice", "score": 95}, {"name": "Bob", "score": 87}]
+avg = sum(d["score"] for d in data) / len(data)
+print(f"Average score: {avg:.1f}")
+print(json.dumps(data, indent=2))
+"""
+
+result = code_executor.execute_code(code, "python")
+if result["success"]:
+    print(result["output"])
+else:
+    print(f"Error: {result['error']}")
+```
+
+---
+
+## DocumentProcessor
+
+Extract, analyze, search, and convert documents (PDF, DOCX, TXT).
+
+**Module**: `tools.document_tools.document_processor`  
+**Import**: `from tools.document_tools.document_processor import document_processor`
 
 ### Constructor
 
 ```python
-def __init__(self, workspace_root: Optional[str] = None):
-    """
-    Initialize document processor with workspace root directory.
-    
-    Args:
-        workspace_root (Optional[str]): Path to workspace directory.
-            Defaults to project_root/workspace if not specified.
-    """
+DocumentProcessor(workspace_root: Optional[str] = None)
 ```
 
-### Methods
+---
 
-#### extract_text
+### `extract_text(file_path)`
+
 ```python
 @check_permission(PermissionLevel.LOW)
-def extract_text(self, file_path: str) -> Dict[str, Any]:
-    """
-    Extract text from document.
-    
-    Args:
-        file_path (str): Path to document file
-        
-    Returns:
-        Dict[str, Any]: Extracted text with metadata
-        
-    Example:
-        >>> processor = DocumentProcessor()
-        >>> result = processor.extract_text("document.pdf")
-        >>> print(f"Text length: {len(result['text'])}")
-        "Text length: 2048"
-    """
+def extract_text(self, file_path: str) -> Dict[str, Any]
 ```
 
-#### summarize_document
+Extract all text content from a document.
+
+**Supported formats:** `.pdf`, `.docx`, `.txt`, `.md`
+
+**Returns:**
+```python
+{
+    "success": True,
+    "text": "Full extracted text content...",
+    "page_count": 12,
+    "word_count": 3456,
+    "format": "pdf"
+}
+```
+
+**Example:**
+```python
+result = document_processor.extract_text("reports/annual_report.pdf")
+print(f"Pages: {result['page_count']}, Words: {result['word_count']}")
+print(result["text"][:500])
+```
+
+---
+
+### `summarize_document(file_path, max_length=500)`
+
 ```python
 @check_permission(PermissionLevel.LOW)
-def summarize_document(self, file_path: str, max_length: int = 500) -> Dict[str, Any]:
-    """
-    Generate document summary.
-    
-    Args:
-        file_path (str): Path to document file
-        max_length (int): Maximum summary length
-        
-    Returns:
-        Dict[str, Any]: Document summary with metadata
-        
-    Example:
-        >>> processor = DocumentProcessor()
-        >>> result = processor.summarize_document("report.pdf")
-        >>> print(result['summary'])
-        "This report covers quarterly financial performance..."
-    """
+def summarize_document(self, file_path: str, max_length: int = 500) -> Dict[str, Any]
 ```
 
-#### search_in_document
+Generate a concise summary of a document using the LLM.
+
+**Parameters:**
+- `file_path` — Path to document within workspace
+- `max_length` — Maximum summary length in words (default: 500)
+
+**Returns:**
+```python
+{
+    "success": True,
+    "summary": "This report covers Q3 2024 financial performance...",
+    "key_points": ["Revenue grew 15% YoY", "Operating costs reduced by 8%"],
+    "word_count": 245
+}
+```
+
+**Example:**
+```python
+summary = document_processor.summarize_document("reports/q3_report.pdf", max_length=200)
+print(summary["summary"])
+```
+
+---
+
+### `search_in_document(file_path, query)`
+
 ```python
 @check_permission(PermissionLevel.LOW)
-def search_in_document(self, file_path: str, query: str) -> Dict[str, Any]:
-    """
-    Search for text within document.
-    
-    Args:
-        file_path (str): Path to document file
-        query (str): Search query
-        
-    Returns:
-        Dict[str, Any]: Search results with match locations
-        
-    Example:
-        >>> processor = DocumentProcessor()
-        >>> result = processor.search_in_document("doc.pdf", "Python")
-        >>> print(f"Found {result['total_matches']} matches")
-        "Found 5 matches"
-    """
+def search_in_document(self, file_path: str, query: str) -> Dict[str, Any]
 ```
 
-#### analyze_document
+Search for text or a phrase within a document.
+
+**Returns:**
+```python
+{
+    "success": True,
+    "query": "revenue growth",
+    "total_matches": 5,
+    "matches": [
+        {"page": 2, "context": "...revenue growth accelerated to 15%...", "position": 1234},
+        ...
+    ]
+}
+```
+
+**Example:**
+```python
+result = document_processor.search_in_document("reports/annual.pdf", "machine learning")
+print(f"Found {result['total_matches']} matches")
+for match in result["matches"]:
+    print(f"Page {match['page']}: {match['context']}")
+```
+
+---
+
+### `analyze_document(file_path)`
+
 ```python
 @check_permission(PermissionLevel.MEDIUM)
-def analyze_document(self, file_path: str) -> Dict[str, Any]:
-    """
-    Analyze document structure and metadata.
-    
-    Args:
-        file_path (str): Path to document file
-        
-    Returns:
-        Dict[str, Any]: Document analysis results
-        
-    Example:
-        >>> processor = DocumentProcessor()
-        >>> result = processor.analyze_document("data.pdf")
-        >>> print(f"Word count: {result['statistics']['word_count']}")
-        "Word count: 1250"
-    """
+def analyze_document(self, file_path: str) -> Dict[str, Any]
 ```
 
-#### convert_document
+Analyze a document's structure, metadata, and statistics.
+
+**Returns:**
+```python
+{
+    "success": True,
+    "metadata": {
+        "title": "Annual Report 2024",
+        "author": "Finance Team",
+        "created": "2024-01-15",
+        "pages": 45
+    },
+    "statistics": {
+        "word_count": 12500,
+        "paragraph_count": 320,
+        "section_count": 8,
+        "image_count": 12,
+        "table_count": 5
+    },
+    "structure": ["Executive Summary", "Financial Overview", "...]
+}
+```
+
+---
+
+### `convert_document(file_path, output_format)`
+
 ```python
 @check_permission(PermissionLevel.MEDIUM)
-def convert_document(self, file_path: str, output_format: str) -> Dict[str, Any]:
-    """
-    Convert document to different format.
-    
-    Args:
-        file_path (str): Path to document file
-        output_format (str): Target format (txt, md, json)
-        
-    Returns:
-        Dict[str, Any]: Conversion result with output path
-        
-    Example:
-        >>> processor = DocumentProcessor()
-        >>> result = processor.convert_document("doc.pdf", "txt")
-        >>> print(result['message'])
-        "Successfully converted to txt"
-    """
+def convert_document(self, file_path: str, output_format: str) -> Dict[str, Any]
 ```
 
-## Task Scheduler API
+Convert a document to a different format.
 
-### Class Definition
+**Supported output formats:** `"txt"`, `"md"`, `"json"`
 
+**Returns:**
 ```python
-class TaskScheduler:
-    """Safe task scheduling with validation and logging"""
+{
+    "success": True,
+    "output_path": "reports/annual_report.txt",
+    "message": "Successfully converted to txt",
+    "size": 45678
+}
 ```
+
+**Example:**
+```python
+result = document_processor.convert_document("reports/spec.pdf", "md")
+print(f"Converted to: {result['output_path']}")
+```
+
+---
+
+## TaskScheduler
+
+Schedule, manage, and monitor timed or recurring tasks.
+
+**Module**: `tools.scheduler_tools.task_scheduler`  
+**Import**: `from tools.scheduler_tools.task_scheduler import task_scheduler`
 
 ### Constructor
 
 ```python
-def __init__(self, workspace_root: Optional[str] = None):
-    """
-    Initialize task scheduler with workspace root directory.
-    
-    Args:
-        workspace_root (Optional[str]): Path to workspace directory.
-            Defaults to project_root/workspace if not specified.
-    """
+TaskScheduler(workspace_root: Optional[str] = None)
 ```
 
-### Methods
+---
 
-#### schedule_task
+### `schedule_task(task_data)`
+
 ```python
 @check_permission(PermissionLevel.MEDIUM)
-def schedule_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Schedule a new task.
-    
-    Args:
-        task_data (Dict[str, Any]): Task configuration including name, type, and scheduled_time
-        
-    Returns:
-        Dict[str, Any]: Task scheduling result with task ID
-        
-    Example:
-        >>> from datetime import datetime, timedelta
-        >>> scheduler = TaskScheduler()
-        >>> future_time = datetime.now() + timedelta(hours=1)
-        >>> task_data = {
-        ...     "name": "backup_task",
-        ...     "task_type": "file_operation",
-        ...     "scheduled_time": future_time.isoformat(),
-        ...     "parameters": {"path": "backup"}
-        ... }
-        >>> result = scheduler.schedule_task(task_data)
-        >>> print(f"Task ID: {result['task_id']}")
-        "Task ID: task_1234567890"
-    """
+def schedule_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]
 ```
 
-#### list_tasks
+Schedule a new task for future execution.
+
+**Parameters — `task_data` dictionary:**
+
+```python
+{
+    "name": "daily_backup",                       # Required: unique task name
+    "task_type": "file_operation",                # Required: task category
+    "scheduled_time": "2026-06-17T09:00:00",     # Required: ISO 8601 datetime
+    "parameters": {                               # Optional: task-specific config
+        "source": "workspace/data",
+        "destination": "workspace/backup"
+    },
+    "recurring": False,                           # Optional: set True for recurring
+    "interval_seconds": 86400                     # Optional: recurrence interval
+}
+```
+
+**Returns:**
+```python
+{
+    "success": True,
+    "task_id": "task_1718607600_daily_backup",
+    "message": "Task scheduled successfully",
+    "scheduled_time": "2026-06-17T09:00:00"
+}
+```
+
+**Example:**
+```python
+from datetime import datetime, timedelta
+
+result = task_scheduler.schedule_task({
+    "name": "weekly_report",
+    "task_type": "code_execution",
+    "scheduled_time": (datetime.now() + timedelta(days=7)).isoformat(),
+    "parameters": {"script": "workspace/generate_report.py"}
+})
+print(f"Scheduled with ID: {result['task_id']}")
+```
+
+---
+
+### `list_tasks(status=None)`
+
 ```python
 @check_permission(PermissionLevel.LOW)
-def list_tasks(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
-    """
-    List scheduled tasks.
-    
-    Args:
-        status (Optional[str]): Filter by task status (scheduled, running, completed, cancelled)
-        
-    Returns:
-        List[Dict[str, Any]]: List of tasks with metadata
-        
-    Example:
-        >>> scheduler = TaskScheduler()
-        >>> tasks = scheduler.list_tasks("scheduled")
-        >>> for task in tasks:
-        ...     print(f"{task['name']} - {task['status']}")
-        "backup_task - scheduled"
-    """
+def list_tasks(self, status: Optional[str] = None) -> List[Dict[str, Any]]
 ```
 
-#### cancel_task
+List all scheduled tasks, optionally filtered by status.
+
+**Parameters:**
+- `status` — Filter: `"scheduled"`, `"running"`, `"completed"`, `"cancelled"` (omit for all)
+
+**Returns:** List of task dictionaries with full metadata
+
+**Example:**
 ```python
-@check_permission(PermissionLevel.MEDIUM)
-def cancel_task(self, task_id: str) -> Dict[str, Any]:
-    """
-    Cancel a scheduled task.
-    
-    Args:
-        task_id (str): ID of task to cancel
-        
-    Returns:
-        Dict[str, Any]: Cancellation result
-        
-    Example:
-        >>> scheduler = TaskScheduler()
-        >>> result = scheduler.cancel_task("task_1234567890")
-        >>> print(result['message'])
-        "Task cancelled successfully"
-    """
+# All pending tasks
+tasks = task_scheduler.list_tasks("scheduled")
+for t in tasks:
+    print(f"{t['name']} — {t['scheduled_time']} ({t['status']})")
 ```
 
-#### get_task_status
+---
+
+### `get_task_status(task_id)`
+
 ```python
 @check_permission(PermissionLevel.LOW)
-def get_task_status(self, task_id: str) -> Dict[str, Any]:
-    """
-    Get status of a specific task.
-    
-    Args:
-        task_id (str): ID of task
-        
-    Returns:
-        Dict[str, Any]: Task status information
-        
-    Example:
-        >>> scheduler = TaskScheduler()
-        >>> status = scheduler.get_task_status("task_1234567890")
-        >>> print(f"Status: {status['status']}")
-        "Status: scheduled"
-    """
+def get_task_status(self, task_id: str) -> Dict[str, Any]
 ```
 
-#### reschedule_task
+Get the current status and details of a specific task.
+
+**Returns:**
+```python
+{
+    "task_id": "task_1718607600_daily_backup",
+    "name": "daily_backup",
+    "status": "scheduled",
+    "scheduled_time": "2026-06-17T09:00:00",
+    "created_at": "2026-06-16T10:00:00",
+    "last_run": None,
+    "next_run": "2026-06-17T09:00:00"
+}
+```
+
+---
+
+### `cancel_task(task_id)`
+
 ```python
 @check_permission(PermissionLevel.MEDIUM)
-def reschedule_task(self, task_id: str, new_time: datetime) -> Dict[str, Any]:
-    """
-    Reschedule existing task.
-    
-    Args:
-        task_id (str): ID of task to reschedule
-        new_time (datetime): New scheduled time
-        
-    Returns:
-        Dict[str, Any]: Rescheduling result
-        
-    Example:
-        >>> from datetime import datetime, timedelta
-        >>> scheduler = TaskScheduler()
-        >>> new_time = datetime.now() + timedelta(hours=2)
-        >>> result = scheduler.reschedule_task("task_1234567890", new_time)
-        >>> print(result['message'])
-        "Task rescheduled successfully"
-    """
+def cancel_task(self, task_id: str) -> Dict[str, Any]
 ```
 
-## Tool Registration and Integration
+Cancel a scheduled or recurring task.
 
-### Tool Registry Integration
+**Returns:**
+```python
+{
+    "success": True,
+    "task_id": "task_1718607600_daily_backup",
+    "message": "Task cancelled successfully"
+}
+```
 
-All tools are automatically registered with the VoiceOS Tool Registry through the `VoiceOSToolsIntegration` class:
+---
+
+### `reschedule_task(task_id, new_time)`
+
+```python
+@check_permission(PermissionLevel.MEDIUM)
+def reschedule_task(self, task_id: str, new_time: datetime) -> Dict[str, Any]
+```
+
+Change the scheduled time of an existing task.
+
+**Example:**
+```python
+from datetime import datetime, timedelta
+
+new_time = datetime.now() + timedelta(hours=3)
+result = task_scheduler.reschedule_task("task_1718607600_daily_backup", new_time)
+```
+
+---
+
+## Tool Registry Integration
+
+All tools are auto-registered at startup via `VoiceOSToolsIntegration`:
 
 ```python
 from tools.voiceos_tools_integration import initialize_voiceos_tools_integration
 from tools.tool_registry import ToolRegistry
 
-# Initialize tool registry
 tool_registry = ToolRegistry()
-
-# Register all VoiceOS tools
 integration = initialize_voiceos_tools_integration(tool_registry)
-registered_count = integration.register_voiceos_tools()
+count = integration.register_voiceos_tools()
+print(f"Registered {count} tools")
 ```
 
-### Permission Levels
-
-Tools use a hierarchical permission system:
-
-- **LOW**: Safe read operations (file_exists, list_directory, get_page_info, search_web)
-- **MEDIUM**: File creation and modification (write_file, create_file, open_page, scrape_content)
-- **HIGH**: System operations (delete_file, execute_code)
-
-### Error Handling
-
-All tools implement comprehensive error handling:
+### Programmatic Tool Access
 
 ```python
-try:
-    result = tool.method(param1, param2)
-except PermissionError as e:
-    print(f"Permission denied: {e}")
-except ValueError as e:
-    print(f"Invalid input: {e}")
-except Exception as e:
-    print(f"Unexpected error: {e}")
-```
+from tools.tool_registry import ToolRegistry
 
-### Logging
+registry = ToolRegistry()
 
-All tool operations are logged for security and audit purposes:
+# List all registered tools
+tools = registry.list_tools()
+print(tools)  # ['enhanced_file_manager', 'browser_tool', ...]
 
-```python
-# Logs are stored in workspace/logs/
-# File operations: workspace/logs/file_operations.log
-# Web operations: workspace/logs/browser_operations.log
-# Code execution: workspace/logs/code_execution.log
-# Document processing: workspace/logs/document_operations.log
-# Task scheduling: workspace/logs/scheduler_operations.log
-```
+# Get tool metadata
+info = registry.get_tool_info("enhanced_file_manager")
 
-## Usage Examples
-
-### File Operations Workflow
-
-```python
-from tools.file_tools.enhanced_file_manager import enhanced_file_manager
-
-# Write configuration file
-config_content = """
-database_url = "sqlite:///data.db"
-max_connections = 10
-"""
-result = enhanced_file_manager.write_file("config.ini", config_content)
-
-# Read configuration back
-content = enhanced_file_manager.read_file("config.ini")
-print(content)
-
-# List files in workspace
-files = enhanced_file_manager.list_directory()
-print(f"Found {len(files)} files")
-```
-
-### Web Research Workflow
-
-```python
-from tools.web_tools.browser_tool import browser_tool
-
-# Search for information
-results = browser_tool.search_web("Python async programming", max_results=5)
-
-# Get detailed content from top result
-if results:
-    top_result = results[0]
-    content = browser_tool.scrape_content(top_result['url'])
-    print(f"Content length: {len(content['content'])} characters")
-```
-
-### Code Execution Workflow
-
-```python
-from tools.code_tools.code_executor import code_executor
-
-# Execute Python code
-code = """
-import json
-data = {"name": "VoiceOS", "version": "1.0"}
-print(json.dumps(data, indent=2))
-"""
-result = code_executor.execute_code(code, "python")
-print(result['output'])
-```
-
-### Document Analysis Workflow
-
-```python
-from tools.document_tools.document_processor import document_processor
-
-# Analyze document
-analysis = document_processor.analyze_document("report.pdf")
-print(f"Word count: {analysis['statistics']['word_count']}")
-
-# Generate summary
-summary = document_processor.summarize_document("report.pdf", max_length=200)
-print(f"Summary: {summary['summary']}")
-```
-
-### Task Scheduling Workflow
-
-```python
-from tools.scheduler_tools.task_scheduler import task_scheduler
-from datetime import datetime, timedelta
-
-# Schedule recurring task
-future_time = datetime.now() + timedelta(hours=1)
-task_data = {
-    "name": "daily_backup",
-    "task_type": "file_operation",
-    "scheduled_time": future_time.isoformat(),
-    "parameters": {"source": "data", "destination": "backup"}
-}
-
-result = task_scheduler.schedule_task(task_data)
-print(f"Task scheduled with ID: {result['task_id']}")
-
-# Check task status
-status = task_scheduler.get_task_status(result['task_id'])
-print(f"Task status: {status['status']}")
+# Execute tool programmatically
+result = await registry.execute_tool("enhanced_file_manager", {
+    "method": "write_file",
+    "path": "output/result.txt",
+    "content": "Hello VoiceOS!"
+})
 ```
 
 ---
 
-**Tool API documentation is continuously updated. Check for new features and changes regularly!**
+## Error Handling
+
+All tools follow a consistent error pattern:
+
+```python
+try:
+    result = enhanced_file_manager.read_file("data.txt")
+except FileNotFoundError as e:
+    print(f"File not found: {e}")
+except ValueError as e:
+    # Path outside workspace, invalid URL, etc.
+    print(f"Invalid input: {e}")
+except PermissionError as e:
+    # Permission denied (user declined or insufficient level)
+    print(f"Permission denied: {e}")
+except Exception as e:
+    print(f"Unexpected error: {e}")
+```
+
+---
+
+## Audit Logs
+
+All tool operations are automatically logged:
+
+| Tool | Log File |
+|------|---------|
+| `EnhancedFileManager` | `workspace/logs/file_operations.log` |
+| `BrowserTool` | `workspace/logs/browser_operations.log` |
+| `CodeExecutor` | `workspace/logs/code_execution.log` |
+| `DocumentProcessor` | `workspace/logs/document_operations.log` |
+| `TaskScheduler` | `workspace/logs/scheduler_operations.log` |
+
+Each log entry contains: timestamp, agent type, tool name, method, parameters (sanitized), result status, and execution time.

@@ -1,6 +1,6 @@
 """
-Browser Tool - Safe wrapper for Agent Zero browser automation
-Maintains VoiceOS security boundaries while leveraging imported capabilities
+Browser Tool - HTTP fetch and web scraping for VoiceOS.
+URL validation and response size limits apply.
 """
 
 import logging

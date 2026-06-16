@@ -1,6 +1,6 @@
 """
-Task Scheduler - Safe wrapper for Agent Zero task scheduling
-Maintains VoiceOS security boundaries while leveraging imported capabilities
+Task Scheduler - Deferred and recurring tasks for VoiceOS.
+Persists schedules under the workspace with permission checks.
 """
 
 import os
@@ -21,6 +21,7 @@ import time
 
 from core.config import config
 from permissions.permission_engine import PermissionLevel, check_permission
+from tools.workspace_paths import resolve_within_workspace, assert_within_workspace
 
 
 class TaskScheduler:
@@ -85,10 +86,12 @@ class TaskScheduler:
     
     def _validate_file_params(self, params: Dict[str, Any]):
         """Validate file operation parameters"""
-        if 'path' in params:
-            path = Path(params['path'])
-            if not str(path.resolve()).startswith(str(self.workspace_root.resolve())):
-                raise ValueError("File path must be within workspace")
+        if "path" in params:
+            try:
+                resolved = resolve_within_workspace(self.workspace_root, params["path"])
+                assert_within_workspace(self.workspace_root, resolved)
+            except PermissionError as exc:
+                raise ValueError("File path must be within workspace") from exc
     
     def _validate_web_params(self, params: Dict[str, Any]):
         """Validate web scraping parameters"""

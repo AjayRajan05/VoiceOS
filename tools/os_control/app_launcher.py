@@ -1,20 +1,13 @@
-import subprocess
-import platform
+from tools.os_control.platform import get_platform_adapter
 
 
 class AppLauncher:
 
+    def __init__(self, adapter=None):
+        self._adapter = adapter or get_platform_adapter()
+
     def open_app(self, app_name):
-
-        system = platform.system()
-
-        if system == "Windows":
-            subprocess.Popen(app_name)
-
-        elif system == "Darwin":
-            subprocess.Popen(["open", "-a", app_name])
-
-        elif system == "Linux":
-            subprocess.Popen([app_name])
-
-        return f"Opening {app_name}"
+        result = self._adapter.open_app(app_name)
+        if result.get("success"):
+            return result.get("message", f"Opening {app_name}")
+        return f"Failed to open {app_name}: {result.get('error', 'unknown error')}"

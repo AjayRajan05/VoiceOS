@@ -1,0 +1,26 @@
+name: VoiceOS CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt chardet sympy pytest pytest-asyncio
+      - name: Verify setup
+        run: python scripts/verify_setup.py
+      - name: System tests
+        run: python main.py --test
+      - name: Pytest suite
+        run: PYTHONPATH=. pytest tests/ -q --tb=short --ignore=tests/test_framework.py

@@ -1,6 +1,6 @@
 """
-Plugin Loader - Dynamic loading and management of Agent Zero plugins
-Maintains VoiceOS security boundaries while leveraging imported capabilities
+Plugin Loader - Dynamic loading and management of VoiceOS bundled plugins.
+Enforces permission levels and safe import boundaries.
 """
 
 import os
@@ -29,9 +29,7 @@ class PluginInfo:
 
 
 class PluginLoader:
-    """
-    Safe plugin loader that validates and manages imported Agent Zero plugins
-    """
+    """Safe plugin loader that validates and manages VoiceOS bundled plugins."""
     
     def __init__(self, workspace_root: Optional[str] = None):
         self.workspace_root = Path(workspace_root) if workspace_root else config.project_root / "workspace"

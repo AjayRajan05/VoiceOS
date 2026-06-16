@@ -1,344 +1,548 @@
-# VoiceOS Tools Integration Guide
+# 🔌 VoiceOS Tools Integration Guide
+
+How to register, extend, and use tools within the VoiceOS system — including writing custom tools and integrating third-party capabilities.
+
+---
 
 ## Overview
 
-This guide documents the native VoiceOS tools integration, maintaining security boundaries while leveraging built-in VoiceOS capabilities.
+VoiceOS uses a **central Tool Registry** that all agents query to discover and execute capabilities. The five native tools (file, web, code, document, scheduler) are registered at startup. You can add your own tools by following this guide.
 
-## Architecture
+---
 
-### Integration Layers
+## Tool Architecture
 
+```mermaid
+graph TD
+    A[Agent or Autonomous Loop] --> B[ToolRegistry.execute_tool]
+    B --> C[PermissionEngine.check_permission]
+    C -->|Granted| D[Tool.method]
+    C -->|Denied| E[PermissionError]
+    D --> F[Safety.validate_action]
+    F -->|Safe| G[Execute in Workspace]
+    F -->|Unsafe| H[Safety Violation]
+    G --> I[AuditLog.write]
+    G --> J[Return Result]
 ```
-VoiceOS Agents
-    ↓
-Agent Tool Bridge
-    ↓
-Tool Registry
-    ↓
-VoiceOS Tools Integration
-    ↓
-Native VoiceOS Tools
-    ↓
-VoiceOS Core Services
-```
 
-### Safety Boundaries
+---
 
-- **Workspace Isolation**: All operations confined to workspace directory
-- **Permission Validation**: Multi-level permission system (LOW/MEDIUM/HIGH)
-- **Input Sanitization**: All inputs validated before execution
-- **Resource Limits**: Timeouts, memory limits, content size restrictions
-- **Audit Logging**: All operations logged for security monitoring
+## Using the Tool Registry
 
-## Native VoiceOS Tools
-
-### 1. Enhanced File Manager
-- **Location**: `tools/file_tools/enhanced_file_manager.py`
-- **Capabilities**: Safe file operations within workspace
-- **Permission Levels**:
-  - LOW: read_file, list_directory, file_exists
-  - MEDIUM: write_file, create_file
-  - HIGH: delete_file
-
-### 2. Browser Tool
-- **Location**: `tools/web_tools/browser_tool.py`
-- **Capabilities**: Safe web browsing and scraping
-- **Security Features**:
-  - URL validation (only http/https)
-  - Blocked domains (localhost, 127.0.0.1)
-  - Content size limits
-  - Timeout restrictions
-
-### 3. Code Executor
-- **Location**: `tools/code_tools/code_executor.py`
-- **Capabilities**: Sandboxed code execution
-- **Security Features**:
-  - Workspace-only execution
-  - Resource limits (CPU/memory)
-  - Dangerous pattern detection
-  - Isolated sandbox environments
-
-### 4. Document Processor
-- **Location**: `tools/document_tools/document_processor.py`
-- **Capabilities**: Document analysis and processing
-- **Security Features**:
-  - File type validation
-  - Size limits
-  - Content truncation
-  - Workspace restriction
-
-### 5. Task Scheduler
-- **Location**: `tools/scheduler_tools/task_scheduler.py`
-- **Capabilities**: Task scheduling and management
-- **Security Features**:
-  - Task validation
-  - Time range restrictions
-  - Parameter sanitization
-
-## Permission System
-
-### Permission Levels
+### Initialize and Access
 
 ```python
-class PermissionLevel(Enum):
-    LOW = "low"      # Safe read operations
-    MEDIUM = "medium"  # File creation, web access
-    HIGH = "high"      # System operations, deletion
+from tools.tool_registry import ToolRegistry
+
+# Get the shared registry instance
+registry = ToolRegistry()
+
+# List all registered tools
+tools = registry.list_tools()
+print(tools)
+# ['enhanced_file_manager', 'browser_tool', 'code_executor', ...]
+
+# Get metadata for a tool
+info = registry.get_tool_info("enhanced_file_manager")
+print(info)
+# {
+#     "name": "enhanced_file_manager",
+#     "category": "FILE_OPERATIONS",
+#     "permission_level": "medium",
+#     "methods": ["read_file", "write_file", "create_file", "delete_file", ...],
+#     "version": "1.0.0"
+# }
 ```
 
-### Permission Enforcement
-
-1. **Decorator-based**: `@check_permission(PermissionLevel.HIGH)`
-2. **Runtime validation**: Permission checks before execution
-3. **Agent-specific**: Different agents have different permission levels
-4. **Audit trail**: All permission checks logged
-
-## Agent Integration
-
-### Agent Types and Permissions
-
-| Agent Type | Default Permission | Allowed Categories | Max Tools |
-|------------|-------------------|-------------------|-----------|
-| Autonomous | HIGH | All categories | 5 |
-| Researcher | MEDIUM | web_tools, analysis | 3 |
-| Developer | HIGH | system_tools, file_operations | 4 |
-| Analyst | MEDIUM | analysis, web_tools | 3 |
-| General | MEDIUM | file_operations, web_tools | 2 |
-
-### Tool Access Pattern
+### Execute a Tool Programmatically
 
 ```python
-# Agents access tools through the bridge
-result = await agent_tool_manager.execute_agent_task(
-    agent_type="autonomous",
-    task_plan={
-        "steps": [
-            {
-                "tool": "enhanced_file_manager",
-                "method": "write_file",
-                "parameters": {"path": "output.txt", "content": "data"}
-            }
-        ]
+# Async tool execution
+result = await registry.execute_tool(
+    tool_name="enhanced_file_manager",
+    parameters={
+        "method": "write_file",
+        "path": "output/result.txt",
+        "content": "Hello from VoiceOS!"
+    }
+)
+
+result = await registry.execute_tool(
+    tool_name="browser_tool",
+    parameters={
+        "method": "search_web",
+        "query": "Python async programming",
+        "max_results": 5
     }
 )
 ```
 
-## Plugin System
+### Register All Native Tools
 
-### Plugin Loader
-- **Location**: `plugins/plugin_loader.py`
-- **Features**:
-  - Dynamic plugin discovery
-  - Configuration validation
-  - Security scanning
-  - Dependency management
-
-### Plugin Structure
-```
-plugins/
-├── plugin_name/
-│   ├── plugin.yaml          # Plugin metadata
-│   ├── main.py             # Plugin implementation
-│   └── tests/              # Plugin tests
-```
-
-### Plugin Configuration
-```yaml
-name: "example_plugin"
-version: "1.0.0"
-description: "Example plugin"
-author: "VoiceOS Team"
-permission_level: "medium"
-entry_point: "main.py"
-dependencies: []
-enabled: true
-```
-
-## Safety Validation
-
-### Input Validation
-- Path traversal prevention
-- URL validation
-- Code pattern detection
-- Parameter type checking
-
-### Resource Limits
-- Execution timeouts
-- Memory limits
-- File size restrictions
-- Content length limits
-
-### Workspace Isolation
-- All operations confined to workspace
-- No access to system files
-- Temporary sandbox creation
-- Automatic cleanup
-
-## Usage Examples
-
-### Basic File Operations
 ```python
+from tools.voiceos_tools_integration import initialize_voiceos_tools_integration
+from tools.tool_registry import ToolRegistry
+
+tool_registry = ToolRegistry()
+integration = initialize_voiceos_tools_integration(tool_registry)
+count = integration.register_voiceos_tools()
+print(f"Registered {count} VoiceOS tools")
+```
+
+---
+
+## Native Tool Instances
+
+Pre-configured singleton instances are available for direct use:
+
+```python
+# File operations
 from tools.file_tools.enhanced_file_manager import enhanced_file_manager
 
-# Write file (requires MEDIUM permission)
-result = enhanced_file_manager.write_file("test.txt", "Hello World")
-
-# Read file (requires LOW permission)
-content = enhanced_file_manager.read_file("test.txt")
-```
-
-### Web Scraping
-```python
+# Web browsing and search
 from tools.web_tools.browser_tool import browser_tool
 
-# Scrape web page (requires MEDIUM permission)
-result = browser_tool.scrape_content(
-    url="https://example.com",
-    selectors=[".content"]
-)
-```
-
-### Code Execution
-```python
+# Sandboxed code execution
 from tools.code_tools.code_executor import code_executor
 
-# Execute Python code (requires HIGH permission)
-result = code_executor.execute_code(
-    code="print('Hello from sandbox')",
-    language="python"
-)
+# Document processing
+from tools.document_tools.document_processor import document_processor
+
+# Task scheduling
+from tools.scheduler_tools.task_scheduler import task_scheduler
 ```
 
-### Agent Task Execution
+---
+
+## Writing a Custom Tool
+
+### Step 1: Create the Tool File
+
 ```python
-from agents.agent_tool_integration import agent_tool_manager
+# tools/my_tools/my_custom_tool.py
 
-# Execute task as autonomous agent
-result = await agent_tool_manager.execute_agent_task(
-    agent_type="autonomous",
-    task_plan={
-        "steps": [
-            {
-                "tool": "browser_tool",
-                "method": "search_web",
-                "parameters": {"query": "Python tutorials"}
-            },
-            {
-                "tool": "enhanced_file_manager",
-                "method": "write_file",
-                "parameters": {"path": "results.txt", "content": "search results"}
-            }
-        ]
+from typing import Optional, Dict, Any
+from permissions.permission_engine import check_permission, PermissionLevel
+from core.logger import logger
+
+
+class MyCustomTool:
+    """
+    Custom tool that does something useful.
+    All methods that modify state or access external resources
+    must be decorated with @check_permission.
+    """
+
+    TOOL_NAME = "my_custom_tool"
+    CATEGORY = "UTILITY"
+    VERSION = "1.0.0"
+
+    def __init__(self, workspace_root: Optional[str] = None):
+        """
+        Initialize tool with workspace root.
+
+        Args:
+            workspace_root: Absolute path to workspace. Defaults to project_root/workspace.
+        """
+        from core.config import Config
+        config = Config()
+        self.workspace_root = workspace_root or str(config.workspace)
+        self.logger = logger
+
+    @check_permission(PermissionLevel.LOW)
+    def get_status(self) -> Dict[str, Any]:
+        """
+        Get current tool status.
+
+        Returns:
+            Dict with status information
+        """
+        self.logger.log_tool_execution(
+            tool_name=self.TOOL_NAME,
+            method="get_status",
+            result="success"
+        )
+        return {
+            "success": True,
+            "status": "ready",
+            "tool": self.TOOL_NAME,
+            "version": self.VERSION
+        }
+
+    @check_permission(PermissionLevel.MEDIUM)
+    def do_something(self, input_data: str) -> Dict[str, Any]:
+        """
+        Perform the tool's main action.
+
+        Args:
+            input_data: Input to process
+
+        Returns:
+            Dict with result information
+
+        Raises:
+            ValueError: If input_data is invalid
+            PermissionError: If user lacks required permission
+        """
+        if not input_data or not input_data.strip():
+            raise ValueError("input_data cannot be empty")
+
+        # Your tool logic here
+        result = input_data.upper()  # Example transformation
+
+        self.logger.log_tool_execution(
+            tool_name=self.TOOL_NAME,
+            method="do_something",
+            result=result
+        )
+
+        return {
+            "success": True,
+            "result": result,
+            "input_length": len(input_data),
+            "output_length": len(result)
+        }
+
+    @check_permission(PermissionLevel.HIGH)
+    def destructive_action(self, target: str) -> Dict[str, Any]:
+        """
+        Perform an irreversible action (requires HIGH permission + explicit approval).
+
+        Args:
+            target: What to act on
+
+        Returns:
+            Dict with result
+
+        Raises:
+            PermissionError: If user doesn't explicitly approve
+        """
+        # HIGH permission means user will be asked for explicit approval
+        # This method won't execute unless they confirm
+
+        self.logger.log_tool_execution(
+            tool_name=self.TOOL_NAME,
+            method="destructive_action",
+            result=f"acted on {target}"
+        )
+
+        return {
+            "success": True,
+            "message": f"Action performed on: {target}"
+        }
+
+
+# Singleton instance for import
+my_custom_tool = MyCustomTool()
+```
+
+---
+
+### Step 2: Add Tool Metadata
+
+Create a companion metadata class (optional but recommended for registry integration):
+
+```python
+# tools/my_tools/__init__.py
+
+from tools.my_tools.my_custom_tool import MyCustomTool, my_custom_tool
+
+TOOL_METADATA = {
+    "name": "my_custom_tool",
+    "description": "Custom tool that does something useful",
+    "category": "UTILITY",
+    "version": "1.0.0",
+    "author": "Your Name",
+    "methods": {
+        "get_status": {
+            "description": "Get current tool status",
+            "permission": "LOW",
+            "parameters": []
+        },
+        "do_something": {
+            "description": "Perform the main action",
+            "permission": "MEDIUM",
+            "parameters": [
+                {"name": "input_data", "type": "str", "required": True}
+            ]
+        }
     }
-)
-```
-
-## Testing
-
-### Running Tests
-```bash
-python tests/test_voiceos_tools_integration.py
-```
-
-### Test Coverage
-- Safety validation tests
-- Permission enforcement tests
-- Workspace isolation tests
-- Integration functionality tests
-
-## Monitoring and Logging
-
-### Log Locations
-- File operations: `workspace/logs/file_operations.log`
-- Browser operations: `workspace/logs/browser_operations.log`
-- Code execution: `workspace/logs/code_execution.log`
-- Document processing: `workspace/logs/document_operations.log`
-- Task scheduling: `workspace/logs/scheduler_operations.log`
-- Plugin operations: `workspace/logs/plugin_operations.log`
-
-### Log Format
-```json
-{
-    "timestamp": "2024-01-01T12:00:00",
-    "operation": "read_file",
-    "path": "test.txt",
-    "result": "success",
-    "error": null
 }
 ```
 
-## Troubleshooting
+---
 
-### Common Issues
+### Step 3: Register with VoiceOS
 
-1. **Permission Denied**
-   - Check user permission level
-   - Verify tool permission requirements
-   - Review agent configuration
+#### Option A: Register in `voiceos_tools_integration.py`
 
-2. **Path Access Denied**
-   - Ensure path is within workspace
-   - Check path traversal attempts
-   - Verify workspace permissions
+Edit `tools/voiceos_tools_integration.py` to include your tool:
 
-3. **Tool Not Found**
-   - Check tool registration
-   - Verify plugin loading
-   - Review integration status
-
-### Debug Commands
 ```python
-# Check integration status
-from tools.voiceos_tools_integration import VoiceOSToolsIntegration
-integration = VoiceOSToolsIntegration(tool_registry)
-status = integration.get_integration_status()
+from tools.my_tools.my_custom_tool import MyCustomTool
 
-# Check agent capabilities
-from agents.agent_tool_integration import agent_tool_manager
-capabilities = agent_tool_manager.get_agent_capabilities("autonomous")
+class VoiceOSToolsIntegration:
+    def register_voiceos_tools(self) -> int:
+        # ... existing registrations ...
 
-# Check permission levels
-from permissions.permission_engine import permission_engine
-permission_engine.set_user_permission_level(PermissionLevel.HIGH)
+        # Add your tool
+        self.tool_registry.register_tool(MyCustomTool)
+
+        return count
 ```
 
-## Best Practices
+#### Option B: Register Dynamically
 
-### Security
-1. Always validate inputs before processing
-2. Use the principle of least privilege
-3. Log all operations for audit trails
-4. Regularly review permission settings
+```python
+from tools.tool_registry import ToolRegistry
+from tools.my_tools.my_custom_tool import MyCustomTool
 
-### Performance
-1. Use appropriate timeouts for operations
-2. Limit content sizes to prevent memory issues
-3. Clean up temporary resources
-4. Monitor execution times
+registry = ToolRegistry()
+success = registry.register_tool(MyCustomTool)
+print(f"Tool registered: {success}")
+```
 
-### Maintenance
-1. Keep plugin configurations updated
-2. Regular security scans of plugins
-3. Test integration after updates
-4. Monitor log files for issues
+#### Option C: Register via Plugin
 
-## Future Enhancements
+If your tool is part of a plugin:
 
-### Planned Features
-- Advanced plugin management
-- Dynamic permission adjustment
-- Enhanced monitoring dashboard
-- Automated security scanning
-- Performance optimization
+```python
+class MyPlugin(VoiceOSPluginInterface):
+    def get_tools(self):
+        from tools.my_tools.my_custom_tool import MyCustomTool
+        return [MyCustomTool]
+```
 
-### Extension Points
-- Custom tool wrappers
-- Additional permission levels
-- New agent types
-- Enhanced logging formats
+---
 
-## Conclusion
+### Step 4: Test Your Tool
 
-The VoiceOS tools integration provides a secure, modular way to leverage native VoiceOS capabilities while maintaining strict security boundaries. The layered architecture ensures that all operations are validated, logged, and executed within safe parameters.
+```python
+from tools.my_tools.my_custom_tool import my_custom_tool
+from permissions.permission_engine import PermissionLevel, permission_engine
 
-For questions or issues, refer to the test suite and log files for detailed information about integration behavior.
+# Set permission level for testing
+permission_engine.set_user_permission_level(PermissionLevel.MEDIUM)
+
+# Test the tool
+status = my_custom_tool.get_status()
+assert status["success"] is True
+
+result = my_custom_tool.do_something("hello world")
+assert result["success"] is True
+assert result["result"] == "HELLO WORLD"
+
+print("All tests passed!")
+```
+
+---
+
+## Permission Decorator Reference
+
+Apply these decorators to every tool method that accesses resources:
+
+```python
+from permissions.permission_engine import check_permission, PermissionLevel
+
+@check_permission(PermissionLevel.LOW)
+def read_only_operation(self, ...):
+    """Silent allow — no user prompt"""
+
+@check_permission(PermissionLevel.MEDIUM)
+def write_or_network_operation(self, ...):
+    """User confirmation required"""
+
+@check_permission(PermissionLevel.HIGH)
+def destructive_or_exec_operation(self, ...):
+    """Explicit approval required"""
+```
+
+---
+
+## Tool Best Practices
+
+### 1. Validate All Inputs
+
+```python
+def process(self, file_path: str, query: str) -> Dict[str, Any]:
+    if not file_path:
+        raise ValueError("file_path is required")
+    if not query or not query.strip():
+        raise ValueError("query cannot be empty")
+    if len(query) > 10000:
+        raise ValueError("query too long (max 10,000 characters)")
+    # ... proceed safely
+```
+
+### 2. Enforce Workspace Boundaries
+
+```python
+import os
+from pathlib import Path
+
+def _validate_path(self, path: str) -> Path:
+    """Ensure path is within workspace — raise ValueError if not."""
+    workspace = Path(self.workspace_root).resolve()
+    target = (workspace / path).resolve()
+
+    if not str(target).startswith(str(workspace)):
+        raise ValueError(f"Path '{path}' is outside workspace boundary")
+
+    return target
+```
+
+### 3. Return Consistent Result Dicts
+
+```python
+# Always return a dict with at minimum: success, and either result or error
+return {
+    "success": True,
+    "result": "...",
+    # Optional fields:
+    "execution_time": elapsed,
+    "metadata": {...}
+}
+
+# On failure:
+return {
+    "success": False,
+    "error": str(exception),
+    "error_type": type(exception).__name__
+}
+```
+
+### 4. Log All Operations
+
+```python
+self.logger.log_tool_execution(
+    tool_name=self.TOOL_NAME,
+    method="method_name",
+    result=result_or_summary,
+    error=None,                 # str if error occurred
+    execution_time=elapsed_secs
+)
+```
+
+### 5. Handle Errors Gracefully
+
+```python
+@check_permission(PermissionLevel.MEDIUM)
+def safe_method(self, param: str) -> Dict[str, Any]:
+    try:
+        result = self._do_work(param)
+        self.logger.log_tool_execution(
+            tool_name=self.TOOL_NAME,
+            method="safe_method",
+            result="success"
+        )
+        return {"success": True, "result": result}
+    except ValueError as e:
+        self.logger.log_tool_execution(
+            tool_name=self.TOOL_NAME,
+            method="safe_method",
+            result=None,
+            error=str(e)
+        )
+        return {"success": False, "error": str(e), "error_type": "ValueError"}
+    except Exception as e:
+        self.logger.log_tool_execution(
+            tool_name=self.TOOL_NAME,
+            method="safe_method",
+            result=None,
+            error=str(e)
+        )
+        raise  # Re-raise unexpected errors
+```
+
+---
+
+## Agent Tool Bridge
+
+The `AgentToolBridge` connects agents to tools with type-specific capability filtering:
+
+```python
+from agents.agent_tool_integration import AgentToolBridge
+from tools.tool_registry import ToolRegistry
+
+bridge = AgentToolBridge(tool_registry=ToolRegistry())
+
+# Get tools available for a specific agent type
+researcher_tools = bridge.get_available_tools_for_agent("researcher")
+# ['browser_tool', 'document_processor', 'enhanced_file_manager']
+
+developer_tools = bridge.get_available_tools_for_agent("developer")
+# ['code_executor', 'enhanced_file_manager', 'browser_tool']
+
+# Execute a tool on behalf of an agent (with permission check and logging)
+result = await bridge.execute_tool_for_agent(
+    agent_type="researcher",
+    tool_name="browser_tool",
+    method_name="search_web",
+    query="Python async programming",
+    max_results=5
+)
+```
+
+---
+
+## Tool Categories
+
+| Category | Value | Native Tools |
+|---------|-------|-------------|
+| File Operations | `FILE_OPERATIONS` | `EnhancedFileManager` |
+| Web Operations | `WEB_OPERATIONS` | `BrowserTool` |
+| Code Execution | `CODE_EXECUTION` | `CodeExecutor` |
+| Document Processing | `DOCUMENT_PROCESSING` | `DocumentProcessor` |
+| Task Scheduling | `TASK_SCHEDULING` | `TaskScheduler` |
+| OS Control | `OS_CONTROL` | OS control modules |
+| Communication | `COMMUNICATION` | Messaging plugins |
+| Utility | `UTILITY` | Custom utilities |
+
+Filter tools by category:
+```python
+from tools.tool_registry import ToolRegistry, ToolCategory
+
+registry = ToolRegistry()
+web_tools = registry.list_tools(category=ToolCategory.WEB_OPERATIONS)
+```
+
+---
+
+## Audit Logging
+
+All tool operations are automatically logged. Log files per tool:
+
+| Tool | Log File |
+|------|---------|
+| `EnhancedFileManager` | `workspace/logs/file_operations.log` |
+| `BrowserTool` | `workspace/logs/browser_operations.log` |
+| `CodeExecutor` | `workspace/logs/code_execution.log` |
+| `DocumentProcessor` | `workspace/logs/document_operations.log` |
+| `TaskScheduler` | `workspace/logs/scheduler_operations.log` |
+| Custom tools | `workspace/logs/tool_operations.log` |
+
+Each log entry contains:
+```json
+{
+    "timestamp": "2026-06-16T09:30:00Z",
+    "tool_name": "enhanced_file_manager",
+    "method": "write_file",
+    "agent_type": "developer",
+    "parameters": {"path": "output.txt"},
+    "result": "success",
+    "execution_time_ms": 15,
+    "permission_level": "MEDIUM"
+}
+```
+
+---
+
+## Related Documentation
+
+| Document | Link |
+|---------|------|
+| Tool API Reference | [tool_api.md](tool_api.md) |
+| Full API Reference | [api_reference.md](api_reference.md) |
+| Core Integration Systems | [core_integration_systems.md](core_integration_systems.md) |
+| Agent System | [agents.md](agents.md) |
+| Architecture | [architecture.md](architecture.md) |

@@ -253,7 +253,12 @@ class AutonomousStateManager:
         """
         Get current task state
         """
-        return self.active_tasks.get(task_id)
+        if task_id in self.active_tasks:
+            return self.active_tasks[task_id]
+        for task in self.task_history:
+            if task.task_id == task_id:
+                return task
+        return None
     
     def get_all_active_tasks(self) -> Dict[str, TaskState]:
         """
@@ -317,10 +322,9 @@ class AutonomousStateManager:
         """
         Get comprehensive task context
         """
-        if task_id not in self.active_tasks:
+        task = self.get_task_state(task_id)
+        if not task:
             return {}
-        
-        task = self.active_tasks[task_id]
         
         return {
             "task_id": task.task_id,

@@ -429,7 +429,8 @@ class TestIntegrationSafety:
         try:
             # Test file manager isolation
             file_manager = EnhancedFileManager(temp_dir)
-            
+            permission_engine.set_user_permission_level(PermissionLevel.HIGH)
+
             # Should work within workspace
             file_manager.write_file("test.txt", "content")
             assert file_manager.file_exists("test.txt")

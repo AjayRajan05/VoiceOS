@@ -92,6 +92,8 @@ class AutonomousAgentLoop:
             task_id = self.state_manager.create_task(user_request, goal)
             self.current_task_id = task_id
             self.execution_start_time = task_start_time
+            task_state = self.state_manager.get_task_state(task_id)
+            task_workspace = task_state.workspace_path if task_state else ""
             
             logger.info(f"Starting autonomous task {task_id}: {goal}")
             
@@ -120,7 +122,7 @@ class AutonomousAgentLoop:
                 "result": result.get("result"),
                 "execution_time": execution_time,
                 "iterations": len(self.iterations),
-                "workspace_path": self.state_manager.get_task_state(task_id).workspace_path
+                "workspace_path": task_workspace,
             }
             
         except Exception as e:
@@ -128,10 +130,14 @@ class AutonomousAgentLoop:
             if self.current_task_id:
                 self.state_manager.fail_task(self.current_task_id, str(e))
             
+            failed_state = self.state_manager.get_task_state(self.current_task_id) if self.current_task_id else None
             return {
+                "task_id": self.current_task_id or "",
                 "status": "failed",
                 "error": str(e),
-                "execution_time": time.time() - task_start_time
+                "execution_time": time.time() - task_start_time,
+                "iterations": len(self.iterations),
+                "workspace_path": failed_state.workspace_path if failed_state else "",
             }
         finally:
             self.current_task_id = None
@@ -264,9 +270,9 @@ Current Context:
         Make intelligent decision based on context
         """
         # Simple decision logic - in production, use LLM
-        progress = context["progress"]["completion_percentage"]
-        actions_taken = len(context["actions"])
-        generated_tools = context["generated_tools"]
+        progress = context.get("progress", {}).get("completion_percentage", 0)
+        actions_taken = len(context.get("actions", []))
+        generated_tools = context.get("generated_tools", [])
         
         if progress < 20:
             # Early stage - generate tools
@@ -276,7 +282,8 @@ Current Context:
                 return "execute_tool:web_scraper"
         
         elif progress < 60:
-            # Middle stage - analyze data
+            if "data_analyzer" not in generated_tools and not any("analyzer" in t for t in generated_tools):
+                return "generate_tool:data_analyzer"
             return "execute_tool:data_analyzer"
         
         elif progress < 90:
@@ -340,20 +347,18 @@ Current Context:
         Execute existing tool
         """
         tool_name = decision.split(":", 1)[1]
-        
-        # Get generated tools
         task_state = self.state_manager.get_task_state(task_id)
-        
-        # Find tool (simplified - in production, use proper tool registry)
-        tool_path = Path(task_state.workspace_path) / "tools" / f"{tool_name}.py"
-        
-        if not tool_path.exists():
+        if not task_state:
+            return {"status": "error", "error": "Task not found"}
+
+        tool_path = self._resolve_tool_path(task_state, tool_name)
+        if not tool_path:
             return {"status": "error", "error": f"Tool {tool_name} not found"}
         
         # Create mock tool for execution
         tool = GeneratedTool(
             tool_id="mock_id",
-            name=tool_name,
+            name=tool_path.stem,
             description="Generated tool",
             code="",  # Will be loaded from file
             parameters={},
@@ -375,6 +380,21 @@ Current Context:
         result = await self.tool_executor.execute_tool(task_id, tool, parameters)
         
         return result
+
+    def _resolve_tool_path(self, task_state, tool_name: str):
+        from pathlib import Path
+        tools_dir = Path(task_state.workspace_path) / "tools"
+        candidates = [
+            tools_dir / f"{tool_name}.py",
+            tools_dir / f"{tool_name}_tool.py",
+        ]
+        for generated in task_state.generated_tools:
+            candidates.append(tools_dir / f"{generated}.py")
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        py_files = list(tools_dir.glob("*.py"))
+        return py_files[0] if py_files else None
     
     async def _execute_refine_approach(self, task_id: str) -> Dict[str, Any]:
         """
@@ -446,9 +466,8 @@ Current Context:
         """
         # Check completion criteria
         context = self.state_manager.get_task_context(task_id)
-        progress = context["progress"]["completion_percentage"]
+        progress = context.get("progress", {}).get("completion_percentage", 0)
         
-        # Task is complete if progress is high or action indicates completion
         return progress >= 90 or observation.get("action_result", {}).get("status") == "ready_to_complete"
     
     async def _complete_task(self, task_id: str, observation: Dict[str, Any]) -> Dict[str, Any]:

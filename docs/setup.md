@@ -1,316 +1,410 @@
 # ⚙️ VoiceOS Setup Guide
 
-## 📋 System Requirements
-
-### Minimum Requirements
-- **Python**: 3.10 or higher
-- **RAM**: 8GB minimum, 16GB recommended
-- **Storage**: 10GB free space
-- **OS**: Windows 10+, macOS 10.15+, or Linux (Ubuntu 20.04+)
-
-### Optional Dependencies
-- **Docker**: For containerized deployment
-- **GPU**: NVIDIA GPU with CUDA support for accelerated AI models
-- **Microphone**: For voice input functionality
+Complete guide for installing, configuring, and running VoiceOS locally or with Docker.
 
 ---
 
-## 🚀 Installation
+## 📋 System Requirements
+
+### Minimum Requirements
+
+| Requirement | Value |
+|------------|-------|
+| **Python** | 3.10 or higher |
+| **RAM** | 8 GB (16 GB recommended for local LLM) |
+| **Storage** | 10 GB free (models can be 4–7 GB) |
+| **OS** | Windows 10+, macOS 12+, Ubuntu 20.04+ |
+| **Microphone** | Required for voice mode |
+
+### Optional
+
+| Component | Purpose |
+|----------|---------|
+| **NVIDIA GPU** | Accelerated Whisper STT and LLM inference |
+| **Docker + Compose** | Containerized deployment |
+| **Redis** | Distributed worker queue (`EXECUTION_MODE=queued`) |
+| **PostgreSQL** | Persistent audit logging |
+| **Ollama** | Local LLM backend (alternative to GGUF) |
+
+---
+
+## 🚀 Local Installation
 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/VoiceOS.git
-cd VoiceOS
+git clone https://github.com/AjayRajan05/VoiceOS.git
+cd VoiceOS/project
 ```
 
-### 2. Create Virtual Environment
+### 2. Create a Virtual Environment
 
 ```bash
-# Using venv (recommended)
-python -m venv venv
+# Create environment
+python -m venv .venv
 
 # Activate on Windows
-venv\Scripts\activate
+.venv\Scripts\activate
 
-# Activate on macOS/Linux
-source venv/bin/activate
+# Activate on macOS / Linux
+source .venv/bin/activate
 ```
 
 ### 3. Install Dependencies
 
 ```bash
-# Install core dependencies
+# Core dependencies (required)
 pip install -r requirements.txt
 
-# Install optional dependencies for enhanced features
+# Optional extras: GPU acceleration, Coqui TTS, advanced scraping
 pip install -r requirements-optional.txt
+
+# Or install optional deps via the helper script
+python scripts/install_deps.py --optional
 ```
+
+> **Windows note**: `Coqui TTS` may require extra steps on Windows. Use `Kokoro` (already included in `requirements.txt`) as the default TTS engine.
 
 ### 4. Configure Environment
 
 ```bash
-# Copy environment template
+# Copy the environment template
 cp .env.example .env
-
-# Edit configuration
-# Set your API keys and preferences in .env
 ```
 
----
+Open `.env` and set the required values — see [Environment Variables](#-environment-variables) below.
 
-## 🏃‍♂️ Running VoiceOS
-
-### Local Development
+### 5. Verify Setup
 
 ```bash
-# Run with default configuration
+python scripts/verify_setup.py
+```
+
+This checks Python version, dependencies, microphone availability, workspace directory, and model paths.
+
+### 6. Run VoiceOS
+
+```bash
+# Default hybrid mode (voice + CLI)
 python main.py
 
-# Run with specific configuration
-python main.py --config dev
+# Voice only
+python main.py --mode voice
 
-# Run with voice interface
-python main.py --voice
+# CLI only (no microphone needed)
+python main.py --mode cli
 
-# Run with web interface
-python main.py --web
-```
+# Use a custom config file
+python main.py --config config/voiceos.yaml
 
-### Docker Deployment
+# Check system health and exit
+python main.py --status
 
-```bash
-# Build Docker image
-docker build -t voiceos .
-
-# Run container
-docker run -it --rm \
-  -v $(pwd)/workspace:/app/workspace \
-  -v $(pwd)/models:/app/models \
-  -p 8000:8000 \
-  voiceos
-
-# Run with GPU support
-docker run -it --rm \
-  --gpus all \
-  -v $(pwd)/workspace:/app/workspace \
-  -v $(pwd)/models:/app/models \
-  -p 8000:8000 \
-  voiceos
+# Run system tests and exit (no microphone needed)
+python main.py --test
 ```
 
 ---
 
-## 🤖 AI Models Setup
+## 🐳 Docker Deployment
 
-### Automatic Download
-VoiceOS will automatically download required models on first run:
+Docker is the easiest way to get a full isolated stack running.
+
+### Quick Start
 
 ```bash
-# Models will be downloaded to:
+# Build and start the full stack (VoiceOS + Redis + Postgres)
+docker-compose up --build
+
+# Run in detached (background) mode
+docker-compose up -d --build
+
+# Stop all services
+docker-compose down
+```
+
+### Run with GPU Support
+
+```bash
+docker-compose --profile gpu up --build
+```
+
+### Persistent Volumes
+
+| Volume | Host Path | Description |
+|--------|-----------|-------------|
+| `workspace` | `./workspace` | Agent task workspaces |
+| `models` | `./models` | Downloaded AI models |
+| `logs` | `./logs` | Application logs |
+| `memory` | `./memory` | Agent memory persistence |
+| `config` | `./config` | Configuration files |
+
+Models and workspaces persist between container restarts.
+
+### Interact with the Container
+
+```bash
+# Interactive shell
+docker-compose exec voiceos bash
+
+# Run VoiceOS CLI inside container
+docker-compose exec voiceos python main.py --mode cli
+
+# Check system status
+docker-compose exec voiceos python main.py --status
+
+# View real-time logs
+docker-compose logs -f voiceos
+```
+
+---
+
+## 🔧 Environment Variables
+
+Create a `.env` file (copy from `.env.example`):
+
+```bash
+# ─── Core ─────────────────────────────────────────────
+VOICEOS_ENV=development          # development | production | testing
+LOG_LEVEL=INFO                   # DEBUG | INFO | WARNING | ERROR
+VOICEOS_WORKSPACE=./workspace    # Path to workspace directory
+
+# ─── LLM Backend ──────────────────────────────────────
+# Option A: Ollama (recommended for beginners)
+LLM_ENDPOINT=http://localhost:11434/api/generate
+LLM_MODEL=mistral
+
+# Option B: GGUF file (direct llama.cpp)
+# LLM_MODEL=mistral-7b-instruct.gguf
+# MODELS_DIRECTORY=./models
+
+MAX_RAM_THRESHOLD=12             # Max RAM (GB) for model selection
+
+# ─── Voice ────────────────────────────────────────────
+WHISPER_MODEL=base               # tiny | base | small | medium | large
+TTS_MODEL=tts_models/en/ljspeech/tacotron2-DDC
+TTS_OUTPUT_PATH=./output/response.wav
+MICROPHONE_DEVICE=default        # Use default system microphone
+
+# ─── Optional Cloud API Keys ──────────────────────────
+OPENAI_API_KEY=                  # Leave empty if using local LLM
+ANTHROPIC_API_KEY=
+
+# ─── Security ─────────────────────────────────────────
+PERMISSION_LEVEL=medium          # low | medium | high
+SANDBOX_ENABLED=true
+
+# ─── Distributed Execution ────────────────────────────
+EXECUTION_MODE=local             # local | queued
+REDIS_URL=redis://localhost:6379/0
+
+# ─── Web UI (legacy, currently ignored) ───────────────
+WEB_PORT=8000
+```
+
+---
+
+## ⚙️ Configuration File
+
+Main settings live in `config/voiceos.yaml`:
+
+```yaml
+# Execution mode: local or queued (distributed workers)
+execution_mode: local
+
+# Logging
+logging:
+  level: INFO
+  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+
+# Voice settings
+voice:
+  enable_interrupts: true
+  enable_backchannel: false
+
+# LLM provider
+llm:
+  provider: local          # local | api | remote
+  model: mistral
+
+# Feature flags
+enable_workspace_isolation: true
+enable_agent_memory: true
+enable_event_handlers: true
+```
+
+### Agent Role Configuration
+
+Agent roles are defined in `agents/roles/`:
+
+```yaml
+# agents/roles/researcher/agent.yaml
+name: "researcher"
+version: "1.0.0"
+description: "Specialized in web research and information synthesis"
+permission_level: "medium"
+max_execution_time: 300
+
+tools:
+  - browser_tool
+  - document_processor
+  - enhanced_file_manager
+
+capabilities:
+  - web_research
+  - data_analysis
+  - source_verification
+```
+
+---
+
+## 🤖 AI Model Setup
+
+### Automatic Download (Default)
+
+On first run, `ModelManager` detects your available RAM and downloads the appropriate models automatically:
+
+```
 models/
 ├── whisper/
+│   └── base.pt              # Whisper STT (auto-downloaded)
 ├── tts/
+│   └── ljspeech/            # TTS model (auto-downloaded)
 └── llm/
+    └── mistral-7b.gguf      # LLM (auto-downloaded if RAM >= 8 GB)
+```
+
+### Ollama (Recommended Alternative)
+
+```bash
+# Install Ollama from https://ollama.com
+ollama pull mistral
+
+# Set in .env
+LLM_ENDPOINT=http://localhost:11434/api/generate
+LLM_MODEL=mistral
 ```
 
 ### Manual Model Placement
-If you prefer to use custom models:
 
-```bash
-# Place your models in the appropriate directories
-models/
-├── whisper/
-│   └── base.pt              # Whisper STT model
-├── tts/
-│   └── ljspeech/            # TTS model
-└── llm/
-    └── mistral-7b.gguf     # LLM model
-```
+Place your own models in the `models/` directory and update `MODELS_DIRECTORY` in `.env`.
 
 ### Supported Models
-- **STT**: OpenAI Whisper (tiny, base, small, medium, large)
-- **TTS**: Coqui TTS, Mozilla TTS
-- **LLM**: Mistral, Llama2, CodeLlama (GGUF format)
 
----
-
-## 🔧 Configuration
-
-### Environment Variables
-
-Create a `.env` file with the following variables:
-
-```bash
-# Core Configuration
-VOICEOS_MODE=local                    # local, cloud, hybrid
-VOICEOS_LOG_LEVEL=INFO               # DEBUG, INFO, WARNING, ERROR
-VOICEOS_WORKSPACE=./workspace         # Workspace directory
-
-# AI Model Configuration
-WHISPER_MODEL=base                   # tiny, base, small, medium, large
-TTS_MODEL=ljspeech                   # TTS model to use
-LLM_MODEL=mistral-7b.gguf           # LLM model file
-
-# API Configuration (optional)
-OPENAI_API_KEY=your_openai_key      # For cloud LLM fallback
-ANTHROPIC_API_KEY=your_key          # For Claude integration
-
-# Voice Configuration
-MICROPHONE_DEVICE=default            # Microphone device ID
-VOICE_ACTIVATION=true                # Enable voice activation
-TTS_VOICE_SPEED=1.0                  # TTS speech speed
-
-# Security Configuration
-PERMISSION_LEVEL=medium              # low, medium, high
-ENABLE_LOGGING=true                  # Enable operation logging
-SANDBOX_ENABLED=true                  # Enable code execution sandbox
-```
-
-### Configuration Files
-
-```bash
-# Main configuration
-config/
-├── default.yaml          # Default settings
-├── development.yaml       # Development overrides
-└── production.yaml        # Production settings
-
-# Agent configurations
-agents/
-├── roles/
-│   ├── researcher.yaml
-│   ├── developer.yaml
-│   └── analyst.yaml
-└── core/
-    ├── planner.yaml
-    └── safety.yaml
-```
+| Component | Supported Options |
+|----------|------------------|
+| **STT** | Whisper: `tiny`, `base`, `small`, `medium`, `large` |
+| **TTS** | Kokoro (default), Coqui TTS (optional) |
+| **LLM** | Mistral-7B, Llama 2, CodeLlama (GGUF); any Ollama model |
 
 ---
 
 ## 🌐 Web Interface
 
-### Accessing the Web UI
+> **Note**: The `--web` flag is currently deprecated. VoiceOS operates as a CLI/voice application. A React GUI dashboard is planned for a future release.
+
+---
+
+## 🔁 Distributed Mode (Workers)
+
+For large workloads, enable Redis-based distributed execution:
 
 ```bash
-# Start with web interface
-python main.py --web --port 8000
+# 1. Start Redis (or use docker-compose which includes Redis)
+docker run -d -p 6379:6379 redis:alpine
 
-# Access in browser
-open http://localhost:8000
+# 2. Set execution mode in .env or config/voiceos.yaml
+EXECUTION_MODE=queued
+
+# 3. Start VoiceOS
+python main.py
+
+# 4. Start one or more workers with specific roles
+python workers/agent_worker.py --roles researcher,developer,analyst
+
+# 5. Check distributed status
+python main.py --status
 ```
-
-### Web Interface Features
-- **Dashboard**: System status and activity monitoring
-- **Chat Interface**: Interactive chat with agents
-- **File Manager**: Browse and manage workspace files
-- **Agent Control**: Configure and control agent behavior
-- **Logs Viewer**: View operation logs and debugging info
 
 ---
 
 ## 🔍 Troubleshooting
 
-### Common Issues
+### Import Errors
 
-#### 1. Import Errors
 ```bash
-# Ensure virtual environment is activated
-which python
+# Ensure your virtual environment is activated
+which python    # macOS/Linux — should point to .venv
+.venv\Scripts\python --version   # Windows
 
-# Reinstall dependencies
+# Reinstall all dependencies
 pip install -r requirements.txt --force-reinstall
 ```
 
-#### 2. Model Download Failures
-```bash
-# Check internet connection
-curl -I https://huggingface.co
+### Model Download Failures
 
-# Manual model download
-python -c "from model_manager import ModelDownloader; ModelDownloader().download_all()"
+```bash
+# Trigger model download manually
+python -c "from model_manager.model_manager import ModelManager; ModelManager().ensure_models()"
 ```
 
-#### 3. Permission Errors
-```bash
-# Check workspace permissions
-ls -la workspace/
+### Audio Issues
 
-# Set appropriate permissions
-chmod 755 workspace/
-```
-
-#### 4. Audio Issues
 ```bash
-# List available microphones
+# List available audio devices
 python -c "import sounddevice; print(sounddevice.query_devices())"
 
-# Test microphone
-python -c "import audio.microphone; audio.microphone.test_microphone()"
+# Test your microphone
+python -c "import sounddevice as sd; sd.rec(int(1 * 44100), samplerate=44100, channels=1)"
 ```
 
-### Debug Mode
+### Permission Errors on Workspace
 
 ```bash
-# Run with debug logging
-VOICEOS_LOG_LEVEL=DEBUG python main.py
+# Linux/macOS
+chmod -R 755 workspace/
 
-# Run with verbose output
-python main.py --verbose --debug
+# Windows (PowerShell)
+icacls workspace /grant %USERNAME%:F /T
 ```
 
-### Log Files
-
-Check these files for troubleshooting:
+### Debug Logging
 
 ```bash
-# Main application log
-logs/voiceos.log
+# Enable verbose logging
+LOG_LEVEL=DEBUG python main.py
 
-# Agent operation logs
-workspace/logs/agent_operations.log
-
-# Tool execution logs
-workspace/logs/tool_operations.log
-
-# Error logs
-logs/errors.log
+# Tail log file
+Get-Content logs/voiceos.log -Wait   # Windows PowerShell
+tail -f logs/voiceos.log              # macOS/Linux
 ```
+
+### Log File Locations
+
+| Log | Path |
+|-----|------|
+| Main application | `logs/voiceos.log` |
+| Error log | `logs/errors.log` |
+| Agent operations | `workspace/logs/agent_operations.log` |
+| Tool executions | `workspace/logs/tool_operations.log` |
 
 ---
 
 ## 📚 Next Steps
 
-After successful installation:
+After a successful setup:
 
-1. **Read the Usage Guide**: `docs/usage.md`
-2. **Explore Agent Capabilities**: `docs/agents.md`
-3. **Check Architecture Overview**: `docs/architecture.md`
-4. **Review Security Guidelines**: `docs/security.md`
-
----
-
-## 🤝 Getting Help
-
-- **Documentation**: Check the `docs/` directory
-- **Issues**: Report bugs on GitHub Issues
-- **Discussions**: Join GitHub Discussions for community support
-- **Examples**: See `examples/` directory for usage examples
+1. **[Usage Guide](usage.md)** — Commands, voice interaction patterns, and workflows
+2. **[Agent System](agents.md)** — How agents work and how to define custom roles
+3. **[Architecture](architecture.md)** — System design and data flow
+4. **[Tool API Reference](tool_api.md)** — Native tool classes and methods
+5. **[Docker Instructions](../docker-instructions.md)** — Advanced Docker/Compose configuration
 
 ---
 
-## 🔄 Updates
+## 🆘 Getting Help
 
-To update VoiceOS to the latest version:
-
-```bash
-# Pull latest changes
-git pull origin main
-
-# Update dependencies
-pip install -r requirements.txt --upgrade
-
-# Restart VoiceOS
-python main.py
-```
+- **Docs**: Full documentation in `docs/`
+- **Setup Verification**: `python scripts/verify_setup.py`
+- **System Tests**: `python main.py --test`
+- **GitHub Issues**: Report bugs or request features

@@ -1,6 +1,6 @@
 """
-Document Processor - Safe wrapper for Agent Zero document processing
-Maintains VoiceOS security boundaries while leveraging imported capabilities
+Document Processor - Document read, search, and analysis for VoiceOS.
+Supports common office and text formats within workspace boundaries.
 """
 
 import os
@@ -25,6 +25,7 @@ import chardet
 
 from core.config import config
 from permissions.permission_engine import PermissionLevel, check_permission
+from tools.workspace_paths import resolve_within_workspace, assert_within_workspace
 
 
 class DocumentProcessor:
@@ -45,13 +46,9 @@ class DocumentProcessor:
     def _validate_file(self, file_path: str) -> Path:
         """Validate file path and properties"""
         try:
-            resolved_path = Path(file_path).resolve()
-            
-            # Ensure path is within workspace
-            if not str(resolved_path).startswith(str(self.workspace_root.resolve())):
-                raise PermissionError(f"File {file_path} is outside workspace bounds")
-            
-            # Check if file exists
+            resolved_path = resolve_within_workspace(self.workspace_root, file_path)
+            assert_within_workspace(self.workspace_root, resolved_path)
+
             if not resolved_path.exists():
                 raise FileNotFoundError(f"File not found: {file_path}")
             
@@ -65,7 +62,9 @@ class DocumentProcessor:
                 raise ValueError(f"File too large: {file_size_mb:.2f}MB (max: {self.max_file_size_mb}MB)")
             
             return resolved_path
-            
+
+        except (PermissionError, FileNotFoundError, ValueError):
+            raise
         except Exception as e:
             self.logger.error(f"File validation failed for {file_path}: {e}")
             raise ValueError(f"Invalid file: {e}")
@@ -198,14 +197,13 @@ class DocumentProcessor:
     def search_in_document(self, file_path: str, query: str) -> Dict[str, Any]:
         """Search for text within document"""
         try:
-            validated_path = self._validate_file(file_path)
-            
-            # Validate query
             if not query or len(query.strip()) == 0:
                 raise ValueError("Search query cannot be empty")
-            
+
             if len(query) > 200:
                 raise ValueError("Search query too long")
+
+            validated_path = self._validate_file(file_path)
             
             # Extract text first
             text_content = ""

@@ -1,6 +1,6 @@
 """
-Code Executor - Safe wrapper for Agent Zero code execution
-Maintains VoiceOS security boundaries while leveraging imported capabilities
+Code Executor - Sandboxed code execution for VoiceOS.
+Runs subprocess-isolated Python with workspace and timeout limits.
 """
 
 import os
@@ -149,55 +149,26 @@ class CodeExecutor:
     
     def _execute_python(self, code: str, sandbox_dir: Path) -> Dict[str, Any]:
         """Execute Python code in sandbox"""
+        import subprocess
+        import sys
         try:
-            # Write code to temporary file
             code_file = sandbox_dir / "script.py"
-            with open(code_file, 'w') as f:
+            with open(code_file, "w", encoding="utf-8") as f:
                 f.write(code)
-            
-            # Execute with resource limits
-            cmd = [
-                'python', '-c',
-                f'''
-import subprocess
-import sys
-import resource
-import signal
 
-def timeout_handler(signum, frame):
-    raise TimeoutError("Execution timed out")
-
-signal.signal(signal.SIGALRM, timeout_handler)
-signal.alarm({self.timeout_seconds})
-
-try:
-    # Set memory limit
-    resource.setrlimit(resource.RLIMIT_AS, ({self.max_memory_mb * 1024 * 1024}, -1))
-    
-    # Execute the code
-    with open("{code_file}", "r") as f:
-        code = f.read()
-    
-    exec(code, {{"__builtins__": {{"print": print, "len": len}}}})
-    print("SUCCESS: Code executed successfully")
-except Exception as e:
-    print(f"ERROR: {{e}}")
-'''
-            ]
-            
             result = subprocess.run(
-                cmd,
+                [sys.executable, str(code_file)],
                 cwd=str(sandbox_dir),
                 capture_output=True,
                 text=True,
-                timeout=self.timeout_seconds
+                timeout=self.timeout_seconds,
             )
-            
+
             return {
                 "success": result.returncode == 0,
                 "stdout": result.stdout[:self.max_output_chars],
                 "stderr": result.stderr[:self.max_output_chars],
-                "exit_code": result.returncode
+                "exit_code": result.returncode,
             }
             
         except subprocess.TimeoutExpired:

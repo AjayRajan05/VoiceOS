@@ -1,0 +1,15 @@
+name: Summarizer Agent
+description: Specialized agent for summarizing content and extracting key points
+role: summarizer
+style: concise and clear
+max_steps: 6
+timeout: 90.0
+tools:
+  - content_extractor
+  - summarizer
+  - text_processor
+
+capabilities:
+  - Summarize long documents and articles
+  - Extract key points and themes
+  - Produce executive summaries

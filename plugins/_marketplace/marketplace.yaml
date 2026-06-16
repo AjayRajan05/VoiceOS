@@ -1,0 +1,16 @@
+# VoiceOS curated featured plugins (community index overlay)
+featured:
+  - key: _memory
+    reason: Long-term memory and recall for agents
+  - key: _browser
+    reason: Built-in Playwright browser automation
+  - key: _code_execution
+    reason: Sandboxed code execution
+  - key: _text_editor
+    reason: File read/write/patch tools
+  - key: _office
+    reason: Document and office automation
+
+submit:
+  repository: https://github.com/agent0ai/a0-plugins
+  instructions: Fork the repo, add your plugin to index.yaml, and open a pull request.

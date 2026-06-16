@@ -17,6 +17,7 @@ from core.events.event_bus import EventBus
 from core.events.events import Events
 from core.event import Event
 from permissions.permission_engine import PermissionEngine
+from tools.os_control.platform import get_platform_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class SystemIntegration:
     def __init__(self, event_bus: EventBus, permission_engine: PermissionEngine):
         self.event_bus = event_bus
         self.permission_engine = permission_engine
+        self._platform = get_platform_adapter()
         
         # Operation tracking
         self.active_operations: Dict[str, Dict[str, Any]] = {}
@@ -66,8 +68,8 @@ class SystemIntegration:
         """
         Handle tool execution requests
         """
-        tool_name = event.data.get("tool", "")
-        parameters = event.data.get("parameters", {})
+        tool_name = event.payload.get("tool", "")
+        parameters = event.payload.get("parameters", {})
         
         if tool_name.startswith("system_"):
             await self._execute_system_operation(tool_name, parameters)
@@ -145,61 +147,24 @@ class SystemIntegration:
     
     async def _open_application(self, app_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Open an application safely
+        Open an application safely via the platform adapter.
         """
         try:
-            # Map common application names to executable paths
-            app_executables = {
-                "chrome": "chrome",
-                "firefox": "firefox",
-                "notepad": "notepad",
-                "calculator": "calc",
-                "explorer": "explorer",
-                "cmd": "cmd",
-                "powershell": "powershell",
-                "vscode": "code",
-                "word": "winword",
-                "excel": "excel",
-                "powerpoint": "powerpnt"
-            }
-            
-            executable = app_executables.get(app_name.lower(), app_name)
-            
-            # Additional parameters
             args = parameters.get("args", [])
             if isinstance(args, str):
                 args = [args]
-            
-            # Execute the application
-            if os.name == 'nt':  # Windows
-                process = await asyncio.create_subprocess_exec(
-                    executable, *args,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-            else:  # Unix-like
-                process = await asyncio.create_subprocess_exec(
-                    executable, *args,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-            
-            # Wait a moment to see if it starts successfully
-            await asyncio.sleep(1.0)
-            
-            if process.returncode is None:
+            result = await asyncio.to_thread(
+                self._platform.open_app,
+                app_name,
+                args or None,
+            )
+            if result.get("success"):
                 return {
                     "success": True,
-                    "message": f"Successfully opened {app_name}",
-                    "pid": process.pid
+                    "message": result.get("message", f"Successfully opened {app_name}"),
+                    "pid": result.get("pid"),
                 }
-            else:
-                stdout, stderr = await process.communicate()
-                return {
-                    "success": False,
-                    "error": f"Failed to open {app_name}: {stderr.decode()}"
-                }
-                
+            return {"success": False, "error": result.get("error", f"Failed to open {app_name}")}
         except Exception as e:
             return {"success": False, "error": str(e)}
     
@@ -273,51 +238,11 @@ class SystemIntegration:
     
     async def _focus_application(self, app_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Focus/bring to front an application
+        Focus/bring to front an application via the platform adapter.
         """
         try:
-            # This is platform-specific
-            if os.name == 'nt':  # Windows
-                import pygetwindow as gw
-                
-                windows = gw.getWindowsWithTitle(app_name)
-                if not windows:
-                    # Try by process name
-                    for proc in psutil.process_iter(['pid', 'name']):
-                        if app_name.lower() in proc.info['name'].lower():
-                            windows = gw.getWindowsByPID(proc.info['pid'])
-                            break
-                
-                if windows:
-                    window = windows[0]
-                    window.activate()
-                    return {
-                        "success": True,
-                        "message": f"Focused {app_name}"
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "error": f"Window not found for {app_name}"
-                    }
-            else:
-                # Unix-like systems - use wmctrl if available
-                try:
-                    process = await asyncio.create_subprocess_exec(
-                        'wmctrl', '-a', app_name,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
-                    )
-                    stdout, stderr = await process.communicate()
-                    
-                    if process.returncode == 0:
-                        return {"success": True, "message": f"Focused {app_name}"}
-                    else:
-                        return {"success": False, "error": f"wmctrl failed: {stderr.decode()}"}
-                        
-                except FileNotFoundError:
-                    return {"success": False, "error": "wmctrl not available"}
-            
+            result = await asyncio.to_thread(self._platform.focus_window, app_name)
+            return result
         except Exception as e:
             return {"success": False, "error": str(e)}
     

@@ -26,3 +26,7 @@ class ResponseBuilder:
                 "response_builder"
             )
         )
+
+
+def get_response_builder(bus):
+    return ResponseBuilder(bus)

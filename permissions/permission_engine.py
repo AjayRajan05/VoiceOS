@@ -7,11 +7,13 @@ ensuring safe and controlled access to system resources and tools.
 
 from enum import Enum
 from functools import wraps
-from typing import Callable, Any
+from typing import Callable, Any, Iterable, Optional, TYPE_CHECKING
+import asyncio
 import logging
 from core.events.events import Events
 from core.event import Event
 from core.logger import logger
+from permissions.audit_log import AuditLog
 
 
 class PermissionLevel(Enum):
@@ -29,27 +31,65 @@ class PermissionLevel(Enum):
 class PermissionEngine:
     """
     Permission validation and management system for VoiceOS.
-    
-    This engine handles permission checking, user permission levels,
-    and provides decorators for enforcing permissions on tool methods.
-    
-    Attributes:
-        event_bus: Event bus for permission events
-        current_user_level (PermissionLevel): Current user permission level
     """
 
-    def __init__(self, event_bus=None):
-        """
-        Initialize permission engine.
-        
-        Args:
-            event_bus: Event bus for publishing permission events
-        """
+    HIGH_TOOLS = frozenset({
+        "marketplace", "ide_workflow", "code_executor", "os_close_app",
+        "os_screenshot", "os_click", "os_type_text",
+    })
+    HIGH_INTENTS = frozenset({
+        "install_plugin", "close_application", "run_code", "create_file",
+        "edit_file", "multi_agent_workflow", "autonomous_build",
+    })
+
+    def __init__(self, event_bus=None, safety_mode: str = "strict"):
         self.event_bus = event_bus
-        self.current_user_level = PermissionLevel.MEDIUM  # Default user permission
+        self.current_user_level = PermissionLevel.MEDIUM
+        self.safety_mode = safety_mode
+        self.audit = AuditLog()
         
         if event_bus:
             event_bus.subscribe(Events.LLM_DECISION, self.check_permission)
+
+    async def is_permission_required(self, intent: str, tools: Iterable[str]) -> bool:
+        if self.safety_mode == "permissive":
+            return False
+        tools = list(tools or [])
+        for tool in tools:
+            if tool in self.HIGH_TOOLS or tool.startswith("os_"):
+                return True
+        if intent in self.HIGH_INTENTS:
+            return True
+        return False
+
+    async def prompt_for_approval(
+        self, intent: str, tools: Iterable[str], user_input: str, timeout: float = 30.0
+    ) -> bool:
+        tools = list(tools or [])
+        from core.cli.console import VoiceConsole
+
+        VoiceConsole.permission(f"Intent: {intent} | Tools: {', '.join(tools) or 'none'}")
+        VoiceConsole.dim(f"Input: {user_input[:120]}")
+        prompt = f"{VoiceConsole.PROMPT}Allow? [y/N]: "
+        loop = asyncio.get_event_loop()
+        try:
+            answer = await asyncio.wait_for(
+                loop.run_in_executor(None, lambda: input(prompt)),
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            self.audit.record("permission_timeout", {"intent": intent, "tools": tools})
+            return False
+
+        approved = answer.strip().lower() in ("y", "yes")
+        self.audit.record(
+            "permission_granted" if approved else "permission_denied",
+            {"intent": intent, "tools": tools, "user_input": user_input[:200]},
+        )
+        if self.event_bus:
+            event = Events.PERMISSION_GRANTED if approved else Events.PERMISSION_DENIED
+            await self.event_bus.publish(Event(event, {"intent": intent, "tools": tools}, "permission_engine"))
+        return approved
 
     async def check_permission(self, event):
         """
@@ -142,8 +182,37 @@ class PermissionEngine:
         return False
 
 
-# Global permission engine instance
-permission_engine = PermissionEngine()
+_engine: Optional["PermissionEngine"] = None
+
+
+def set_permission_engine(engine: "PermissionEngine") -> None:
+    global _engine
+    _engine = engine
+
+
+def get_permission_engine() -> "PermissionEngine":
+    if _engine is None:
+        raise RuntimeError(
+            "PermissionEngine not initialized. Call set_permission_engine() during startup."
+        )
+    return _engine
+
+
+def get_permission_engine_optional() -> Optional["PermissionEngine"]:
+    return _engine
+
+
+class _PermissionEngineProxy:
+    """Proxy so legacy `permission_engine.foo` works after set_permission_engine."""
+
+    def __getattr__(self, name):
+        return getattr(get_permission_engine(), name)
+
+    def __setattr__(self, name, value):
+        setattr(get_permission_engine(), name, value)
+
+
+permission_engine = _PermissionEngineProxy()
 
 
 def check_permission(required_level: PermissionLevel):

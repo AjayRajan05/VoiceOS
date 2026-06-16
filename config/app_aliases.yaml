@@ -1,0 +1,44 @@
+# Per-OS application aliases for voice commands like "open chrome" or "open vscode".
+# Keys are lowercase friendly names; values are OS-specific app names or executables.
+
+common:
+  chrome: chrome
+  firefox: firefox
+  vscode: code
+  code: code
+  cursor: cursor
+  calculator: calc
+  explorer: explorer
+
+windows:
+  chrome: chrome
+  firefox: firefox
+  notepad: notepad
+  vscode: code
+  cursor: Cursor
+  calculator: calc
+  explorer: explorer
+  terminal: wt
+  cmd: cmd
+  powershell: powershell
+
+darwin:
+  chrome: Google Chrome
+  firefox: Firefox
+  notepad: TextEdit
+  vscode: Visual Studio Code
+  cursor: Cursor
+  calculator: Calculator
+  explorer: Finder
+  terminal: Terminal
+  safari: Safari
+
+linux:
+  chrome: google-chrome
+  firefox: firefox
+  notepad: gedit
+  vscode: code
+  cursor: cursor
+  calculator: gnome-calculator
+  explorer: nautilus
+  terminal: gnome-terminal

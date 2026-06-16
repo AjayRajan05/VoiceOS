@@ -1,6 +1,5 @@
 """
-Test Suite for Agent Zero Integration
-Validates safety, permissions, and functionality of integrated components
+Test Suite for VoiceOS Runtime Tool Bridge
 """
 
 import pytest
@@ -15,7 +14,7 @@ from tools.web_tools.browser_tool import BrowserTool
 from tools.code_tools.code_executor import CodeExecutor
 from tools.document_tools.document_processor import DocumentProcessor
 from tools.scheduler_tools.task_scheduler import TaskScheduler
-from tools.agent_zero_integration import AgentZeroIntegration
+from tools.runtime_tool_bridge import RuntimeToolBridge
 from tools.tool_registry import ToolRegistry, ToolCategory
 from permissions.permission_engine import PermissionLevel, permission_engine
 from agents.agent_tool_integration import AgentToolBridge, AgentToolManager
@@ -291,21 +290,17 @@ class TestTaskScheduler:
             self.task_scheduler._validate_file_params(invalid_params)
 
 
-class TestAgentZeroIntegration:
-    """Test Agent Zero Integration layer"""
-    
+class TestRuntimeToolBridge:
+    """Test VoiceOS runtime tool bridge"""
+
     def setup_method(self):
-        """Setup test environment"""
         self.tool_registry = ToolRegistry()
-        self.integration = AgentZeroIntegration(self.tool_registry)
-    
+        self.integration = RuntimeToolBridge(self.tool_registry)
+
     def test_tool_registration(self):
-        """Test Agent Zero tool registration"""
-        registered_count = self.integration.register_agent_zero_tools()
+        registered_count = self.integration.register_runtime_tools()
         assert registered_count > 0
-        
-        # Check that tools are registered
-        for tool_name in self.integration.agent_zero_tools.keys():
+        for tool_name in self.integration.runtime_tools.keys():
             assert self.tool_registry.get_tool(tool_name) is not None
     
     def test_permission_validation(self):
@@ -328,10 +323,10 @@ class TestAgentZeroIntegration:
         """Test integration status reporting"""
         status = self.integration.get_integration_status()
         
-        assert "total_agent_zero_tools" in status
+        assert "total_runtime_tools" in status
         assert "registered_tools" in status
         assert "unregistered_tools" in status
-        assert status["total_agent_zero_tools"] > 0
+        assert status["total_runtime_tools"] > 0
 
 
 class TestAgentToolBridge:
@@ -429,7 +424,8 @@ class TestIntegrationSafety:
         try:
             # Test file manager isolation
             file_manager = EnhancedFileManager(temp_dir)
-            
+            permission_engine.set_user_permission_level(PermissionLevel.HIGH)
+
             # Should work within workspace
             file_manager.write_file("test.txt", "content")
             assert file_manager.file_exists("test.txt")
@@ -454,7 +450,7 @@ def run_integration_tests():
     """Run all integration tests"""
     import sys
     
-    print("Running Agent Zero Integration Tests...")
+    print("Running VoiceOS Runtime Tool Bridge Tests...")
     
     test_classes = [
         TestEnhancedFileManager,
@@ -462,7 +458,7 @@ def run_integration_tests():
         TestCodeExecutor,
         TestDocumentProcessor,
         TestTaskScheduler,
-        TestAgentZeroIntegration,
+        TestRuntimeToolBridge,
         TestAgentToolBridge,
         TestAgentToolManager,
         TestIntegrationSafety

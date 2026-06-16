@@ -1,0 +1,66 @@
+# Host-side hybrid config: voice + OS on the machine, heavy work in Docker workers.
+# Start infra: docker compose --profile core --profile workers up -d
+# Optional LLM:  docker compose --profile llm up -d
+# Run host:      python main.py --config config/voiceos.hybrid.yaml
+
+environment: development
+debug: false
+version: "1.0.0"
+
+models_path: models
+workspace_path: workspace
+memory_path: memory
+logs_path: logs
+config_path: config
+
+enable_workspace_isolation: true
+enable_agent_memory: true
+enable_tool_registry: true
+enable_event_handlers: true
+enable_safety_checks: true
+
+# auto → queued when Redis is up, local otherwise
+execution_mode: auto
+
+distributed:
+  redis_url: redis://localhost:6379/0
+  queue_name: voiceos_tasks
+  task_timeout: 120.0
+  auto_detect_redis: true
+
+# Offload inference to Ollama in Docker (profile: llm)
+llm:
+  provider: api
+  model_name: mistral
+  api_base: http://localhost:11434
+  temperature: 0.7
+  max_tokens: 4096
+  timeout: 60.0
+
+agents:
+  max_concurrent_agents: 5
+  default_timeout: 120.0
+  workspace_ttl: 3600
+  safety_level: medium
+
+voice:
+  stt_model: base
+  tts_model: coqui-tts
+  sample_rate: 16000
+  chunk_size: 1024
+  enable_backchannel: true
+  enable_interrupts: true
+  max_recording_duration: 30
+
+security:
+  enable_authentication: false
+  enable_audit_logging: true
+
+performance:
+  enable_monitoring: true
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file_path: logs/voiceos.log
+  enable_console: true

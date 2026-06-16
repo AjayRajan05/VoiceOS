@@ -1,0 +1,9 @@
+# Optional — install for full voice/GPU/local-LLM support
+# TTS: coqui-tts (primary on Linux; on Windows use Kokoro from base requirements)
+coqui-tts
+webrtcvad
+chromadb
+sentence-transformers
+redis>=4.5.0
+psycopg2-binary>=2.9.0
+llama-cpp-python>=0.2.0

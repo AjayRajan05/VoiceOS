@@ -1,5 +1,5 @@
 """
-Enhanced File Manager - Safe wrapper for Agent Zero file operations
+Enhanced File Manager - Safe workspace file operations for VoiceOS
 Maintains VoiceOS security boundaries while leveraging imported capabilities
 """
 
@@ -24,6 +24,7 @@ import os
 
 from core.config import config
 from permissions.permission_engine import PermissionLevel, check_permission
+from tools.workspace_paths import resolve_within_workspace, assert_within_workspace
 
 
 class EnhancedFileManager:
@@ -67,14 +68,11 @@ class EnhancedFileManager:
             ValueError: If path is invalid or malformed
         """
         try:
-            resolved_path = Path(path).resolve()
-            
-            # Ensure path is within workspace
-            if not str(resolved_path).startswith(str(self.workspace_root.resolve())):
-                raise PermissionError(f"Path {path} is outside workspace bounds")
-                
+            resolved_path = resolve_within_workspace(self.workspace_root, path)
+            assert_within_workspace(self.workspace_root, resolved_path)
             return resolved_path
-            
+        except PermissionError:
+            raise
         except Exception as e:
             self.logger.error(f"Path validation failed for {path}: {e}")
             raise ValueError(f"Invalid path: {e}")
@@ -271,6 +269,8 @@ class EnhancedFileManager:
             
             items = []
             for item in validated_path.iterdir():
+                if item.name == "logs":
+                    continue
                 items.append({
                     "name": item.name,
                     "path": str(item),

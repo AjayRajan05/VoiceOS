@@ -1,0 +1,31 @@
+# VoiceOS worker — sandboxed agent execution (no host OS / GUI tools)
+FROM python:3.11-slim
+
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV VOICEOS_TOOL_PROFILE=worker
+ENV EXECUTION_MODE=local
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt requirements-optional.txt ./
+RUN pip install --no-cache-dir -r requirements.txt redis chardet \
+    beautifulsoup4 duckduckgo-search psutil send2trash pandas numpy
+
+COPY . .
+
+RUN mkdir -p /app/workspace /app/memory /app/logs /app/models /app/config \
+    && useradd -m -u 1000 voiceos \
+    && chown -R voiceos:voiceos /app
+USER voiceos
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD python -c "import redis, os; r=redis.from_url(os.getenv('REDIS_URL','redis://localhost:6379/0')); r.ping()" || exit 1
+
+CMD ["python", "workers/agent_worker.py"]

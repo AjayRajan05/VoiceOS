@@ -64,8 +64,9 @@ class SafetyConfig:
     max_concurrent_requests: int = 10
 
 class SafetyModule:
-    def __init__(self, config: SafetyConfig = None):
+    def __init__(self, config: SafetyConfig = None, permission_engine=None):
         self.config = config or SafetyConfig()
+        self.permission_engine = permission_engine
         self.safety_rules = self._initialize_safety_rules()
         self.blocked_patterns = self._initialize_blocked_patterns()
         self.risky_operations = self._initialize_risky_operations()
@@ -444,8 +445,18 @@ class SafetyModule:
             if time.time() - cached['timestamp'] < self.config.session_timeout:
                 return cached['allowed']
         
-        # In a real implementation, this would prompt the user
-        # For now, we'll simulate permission request
+        if self.permission_engine:
+            approved = await self.permission_engine.prompt_for_approval(
+                safety_check.tool_name,
+                [safety_check.tool_name],
+                str(safety_check.parameters)[:200],
+            )
+            self.permission_cache[cache_key] = {
+                "allowed": approved,
+                "timestamp": time.time(),
+            }
+            return approved
+
         logger.warning(f"Permission required for {safety_check.tool_name}: {safety_check.reasons}")
         
         # Cache the permission (default to denied for safety)

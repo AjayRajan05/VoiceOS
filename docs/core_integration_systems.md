@@ -1,208 +1,270 @@
 # 🔧 VoiceOS Core Integration Systems
 
-This document provides comprehensive documentation for VoiceOS's restructured core integration systems, including plugins, helpers, extensions, and the unified integration framework.
+This document covers VoiceOS's modular core integration framework: the **Plugin System**, **Helper System**, **Extension System**, **Integration Framework**, and **Unified Dashboard**.
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
-- [Plugin System](#plugin-system)
-- [Helper System](#helper-system)
-- [Extension System](#extension-system)
-- [Integration Framework](#integration-framework)
-- [Monitoring & Dashboard](#monitoring--dashboard)
-- [Migration Guide](#migration-guide)
-- [Examples](#examples)
+- [Plugin System](#-plugin-system)
+- [Helper System](#-helper-system)
+- [Extension System](#-extension-system)
+- [Integration Framework](#-integration-framework)
+- [Monitoring & Dashboard](#-monitoring--dashboard)
+- [Writing a Plugin](#-writing-a-plugin)
+- [Writing an Extension](#-writing-an-extension)
+- [Writing a Helper](#-writing-a-helper)
+- [Import Path Reference](#-import-path-reference)
 
 ---
 
-## 🎯 Overview
+## Overview
 
-VoiceOS features a **comprehensive integration framework** that has been restructured for better organization, maintainability, and scalability. The core system is now organized into logical subdirectories:
+The `core/` directory organizes all integration systems into logical subdirectories:
 
 ```
 core/
-├── Root Components (7 files)
-├── plugins/ (8 modules) - Plugin System
-├── helpers/ (4 modules) - Helper System  
-├── extensions/ (2 modules) - Extension System
-├── integration/ (2 modules) - Integration Framework
-├── monitoring/ (2 modules) - Performance & Error Recovery
-├── events/ (3 modules) - Event System
-├── cli/ (2 modules) - CLI Integration
-├── pipelines/ (1 module) - Stream Processing
-└── system/ (2 modules) - Management & Dashboard
+├── orchestrator.py            # Top-level coordinator
+├── config.py                  # Config singleton
+├── config_manager.py          # YAML config loading
+├── logger.py                  # Structured logging
+├── security.py                # Security utilities
+├── event.py                   # Event dataclass
+│
+├── events/                    # Event system
+│   ├── event_bus.py           # Async pub/sub EventBus
+│   ├── events.py              # Events enum (all event type strings)
+│   └── event_handlers.py      # Auto-wired event handlers (memory, logging)
+│
+├── cli/                       # Terminal interaction
+│   ├── voice_cli_integration.py  # VoiceCLIIntegration (hybrid voice+CLI loop)
+│   ├── response_builder.py       # Format agent responses for terminal
+│   ├── console.py                # VoiceConsole (rich terminal output)
+│   └── flow_reporter.py          # CLIFlowReporter (streams task progress)
+│
+├── plugins/                   # Plugin system (8 modules)
+│   ├── startup.py             # initialize_voiceos_plugin_system()
+│   ├── secure_plugin_integration.py
+│   ├── plugin_registry.py
+│   ├── plugin_lifecycle.py
+│   ├── plugin_configuration.py
+│   ├── plugin_error_handling.py
+│   ├── plugin_monitoring.py
+│   ├── plugin_testing.py
+│   └── complete_plugin_integration.py
+│
+├── helpers/                   # Helper system (4 modules)
+│   ├── secure_helper_integration.py
+│   ├── helper_bridge_integration.py
+│   ├── helper_extension_discovery.py
+│   └── helper_extension_monitoring.py
+│
+├── extensions/                # Extension point system (2 modules)
+│   ├── secure_extension_integration.py
+│   └── extension_point_system.py
+│
+├── integration/               # Integration patterns (2 modules)
+│   ├── integration_patterns.py
+│   └── controlled_execution.py
+│
+├── monitoring/                # Monitoring (2 modules)
+│   ├── performance_monitor.py
+│   └── error_recovery.py
+│
+├── pipelines/                 # Stream processing (1 module)
+│   └── stream_pipeline.py
+│
+├── runtime/                   # Runtime bootstrap
+│   └── bootstrap.py           # build_runtime_context()
+│
+├── distributed/               # Distributed workers
+│   └── runtime.py             # configure_distributed_runtime()
+│
+└── system/                    # Management tools (2 modules)
+    ├── system_verification.py
+    └── unified_integration_dashboard.py
 ```
 
 ---
 
 ## 🔌 Plugin System
 
-The plugin system provides a secure, scalable way to extend VoiceOS functionality with external plugins.
+The plugin system provides a **security-first, lifecycle-managed** way to extend VoiceOS with external capabilities.
 
 ### Architecture
 
 ```mermaid
 graph TB
-    A[Plugin Discovery] --> B[Security Validation]
-    B --> C[Plugin Registry]
-    C --> D[Lifecycle Management]
-    D --> E[Configuration Manager]
-    E --> F[Error Handler]
-    F --> G[Monitor]
-    G --> H[Test Framework]
-    H --> I[Complete Integration]
+    A[Plugin Discovery\nplugin_registry.py] --> B[Security Validation\nsecure_plugin_integration.py]
+    B --> C[Plugin Registry\nPlugin metadata + status]
+    C --> D[Lifecycle Management\nplugin_lifecycle.py]
+    D --> E[Configuration\nplugin_configuration.py]
+    D --> F[Error Handling\nplugin_error_handling.py]
+    D --> G[Monitoring\nplugin_monitoring.py]
+    D --> H[Testing\nplugin_testing.py]
+    E & F & G & H --> I[Complete Integration\ncomplete_plugin_integration.py]
 ```
 
-### Key Components
+### Plugin Lifecycle States
 
-#### 1. Secure Plugin Integration (`core/plugins/secure_plugin_integration.py`)
+```
+DISCOVERED → LOADING → LOADED → INITIALIZING → ACTIVE → SUSPENDED → UNLOADED
+```
 
-**Purpose**: Security-first plugin loading and validation
+### Components
 
-**Features**:
-- Plugin security validation
-- Code analysis and sandboxing
-- Permission checking
-- Resource monitoring
+#### 1. `core/plugins/startup.py` — System Startup
 
-**API**:
+Called once at application start to initialize the entire plugin subsystem:
+
+```python
+from core.plugins.startup import initialize_voiceos_plugin_system
+
+# Called in main.py during startup
+plugin_info = await initialize_voiceos_plugin_system()
+print(f"Discovered: {plugin_info['discovered']} plugins")
+print(f"Registry entries: {plugin_info['registry_total']}")
+```
+
+---
+
+#### 2. `core/plugins/secure_plugin_integration.py` — Security Validation
+
+Validates every plugin for security compliance before loading:
+
 ```python
 from core.plugins.secure_plugin_integration import get_secure_plugin_adapter
 
 adapter = get_secure_plugin_adapter()
 
-# Validate plugin
-validation_result = await adapter.validate_plugin(plugin_path)
-
-# Load plugin with security
-plugin_instance = await adapter.load_plugin_securely(plugin_path)
+# Validate plugin code for security issues
+validation = await adapter.validate_plugin("/path/to/my_plugin")
+if validation.is_safe:
+    plugin = await adapter.load_plugin_securely("/path/to/my_plugin")
+else:
+    print(f"Security issues: {validation.violations}")
 ```
 
-#### 2. Plugin Registry (`core/plugins/plugin_registry.py`)
+**Security checks performed:**
+- Dangerous import scanning (`os.system`, `subprocess`, `__builtins__`)
+- Network access pattern detection
+- File system access pattern validation
+- Resource usage estimation
 
-**Purpose**: Centralized plugin discovery and registration
+---
 
-**Features**:
-- Automatic plugin discovery
-- Dependency resolution
-- Version management
-- Registry persistence
+#### 3. `core/plugins/plugin_registry.py` — Discovery & Registration
 
-**API**:
+Manages the central registry of all known plugins:
+
 ```python
 from core.plugins.plugin_registry import get_plugin_registry
 
 registry = get_plugin_registry()
 
-# Discover plugins
+# Scan plugins directory for new plugins
 discovered = await registry.discover_plugins()
 
-# Register plugin
-result = await registry.register_plugin(plugin_path)
+# Register a specific plugin
+result = await registry.register_plugin("/path/to/my_plugin")
 
-# Get registry state
+# Query registry state
 state = registry.get_registry_state()
+print(f"Active plugins: {state['active_count']}")
+print(f"Total registered: {state['total']}")
 ```
 
-#### 3. Plugin Lifecycle (`core/plugins/plugin_lifecycle.py`)
+---
 
-**Purpose**: Complete plugin state management
+#### 4. `core/plugins/plugin_lifecycle.py` — State Management
 
-**States**:
-- `DISCOVERED` → `LOADING` → `LOADED` → `INITIALIZING` → `ACTIVE` → `SUSPENDED`
+Controls plugin state transitions:
 
-**API**:
 ```python
 from core.plugins.plugin_lifecycle import get_lifecycle_manager
 
 lifecycle = get_lifecycle_manager()
 
-# Load plugin
-result = await lifecycle.load_plugin("my_plugin")
-
-# Activate plugin
-result = await lifecycle.activate_plugin("my_plugin")
-
-# Suspend plugin
-result = await lifecycle.suspend_plugin("my_plugin", "Maintenance")
+await lifecycle.load_plugin("my_plugin")
+await lifecycle.activate_plugin("my_plugin")
+await lifecycle.suspend_plugin("my_plugin", reason="Maintenance window")
+await lifecycle.resume_plugin("my_plugin")
+await lifecycle.unload_plugin("my_plugin")
 ```
 
-#### 4. Plugin Configuration (`core/plugins/plugin_configuration.py`)
+---
 
-**Purpose**: Multi-scope configuration management
+#### 5. `core/plugins/plugin_configuration.py` — Multi-Scope Config
 
-**Scopes**:
-- `GLOBAL` - System-wide configuration
-- `PLUGIN` - Plugin-specific configuration
-- `USER` - User-specific configuration
-- `WORKSPACE` - Workspace-specific configuration
-- `SESSION` - Session-specific configuration
+Manages configuration at multiple scopes:
 
-**API**:
 ```python
-from core.plugins.plugin_configuration import get_plugin_config_manager
+from core.plugins.plugin_configuration import get_plugin_config_manager, ConfigScope
 
 config = get_plugin_config_manager()
 
-# Set configuration
-await config.set_config("my_plugin", "key", "value", ConfigScope.GLOBAL)
+# Set configuration at different scopes
+await config.set_config("browser_plugin", "timeout", 30, ConfigScope.GLOBAL)
+await config.set_config("browser_plugin", "proxy", "http://proxy:8080", ConfigScope.USER)
+await config.set_config("browser_plugin", "headless", True, ConfigScope.SESSION)
 
-# Get configuration
-value = await config.get_config("my_plugin", "key", ConfigScope.GLOBAL)
+# Get configuration (resolves scope priority: SESSION > USER > PLUGIN > GLOBAL)
+timeout = await config.get_config("browser_plugin", "timeout")
 ```
 
-#### 5. Plugin Error Handling (`core/plugins/plugin_error_handling.py`)
+**Scope priority** (highest to lowest): `SESSION > USER > WORKSPACE > PLUGIN > GLOBAL`
 
-**Purpose**: Comprehensive error recovery and reporting
+---
 
-**Error Categories**:
-- `LOW` - Minor issues, plugin continues
-- `MEDIUM` - Significant issues, may affect functionality
-- `HIGH` - Critical issues, plugin may need restart
-- `CRITICAL` - Fatal issues, plugin must be stopped
+#### 6. `core/plugins/plugin_error_handling.py` — Error Recovery
 
-#### 6. Plugin Monitoring (`core/plugins/plugin_monitoring.py`)
+Categorizes and handles plugin errors:
 
-**Purpose**: Real-time performance and health monitoring
+| Error Level | Action |
+|------------|--------|
+| `LOW` | Log and continue |
+| `MEDIUM` | Log and notify, attempt recovery |
+| `HIGH` | Suspend plugin, alert user |
+| `CRITICAL` | Force-unload plugin, block restart |
 
-**Metrics**:
-- Execution time
-- Memory usage
-- CPU usage
-- Error rates
-- Plugin health scores
+---
 
-#### 7. Plugin Testing (`core/plugins/plugin_testing.py`)
+#### 7. `core/plugins/plugin_monitoring.py` — Real-Time Monitoring
 
-**Purpose**: Built-in security and compatibility testing
+Tracks plugin health and performance:
 
-**Test Types**:
-- `UNIT` - Unit tests
-- `INTEGRATION` - Integration tests
-- `SECURITY` - Security tests
-- `PERFORMANCE` - Performance tests
-- `COMPATIBILITY` - Compatibility tests
-- `SANDBOX` - Sandbox validation tests
+```python
+from core.plugins.plugin_monitoring import get_plugin_monitor
 
-#### 8. Complete Plugin Integration (`core/plugins/complete_plugin_integration.py`)
+monitor = get_plugin_monitor()
 
-**Purpose**: Unified plugin system orchestration
+# Get health status for a plugin
+health = await monitor.get_plugin_health("my_plugin")
+print(f"Health score: {health['score']:.1f}/10")
+print(f"Error rate: {health['error_rate']:.2%}")
+print(f"Avg execution time: {health['avg_execution_ms']:.0f}ms")
 
-**API**:
+# Get all plugin metrics
+all_metrics = await monitor.get_all_metrics()
+```
+
+---
+
+#### 8. `core/plugins/complete_plugin_integration.py` — Unified Access
+
+High-level facade combining all plugin subsystems:
+
 ```python
 from core.plugins.complete_plugin_integration import get_complete_plugin_system
 
 system = get_complete_plugin_system()
 
-# Enable plugin
-result = await system.enable_plugin("my_plugin")
+# Enable/disable plugins
+await system.enable_plugin("telegram_integration")
+await system.disable_plugin("telegram_integration")
 
-# Disable plugin
-result = await system.disable_plugin("my_plugin")
-
-# Get system status
+# Get full system status
 status = await system.get_system_status()
 ```
 
@@ -210,306 +272,523 @@ status = await system.get_system_status()
 
 ## 🤝 Helper System
 
-The helper system provides secure integration of helper functions with VoiceOS tools.
+The helper system bridges **Agent Zero–style helper modules** with the VoiceOS tool registry.
 
 ### Architecture
 
 ```mermaid
 graph TB
-    A[Helper Discovery] --> B[Security Integration]
-    B --> C[Bridge Manager]
-    C --> D[Extension Discovery]
-    D --> E[Helper Monitor]
-    E --> F[VoiceOS Integration]
+    A[Helper Discovery\nhelper_extension_discovery.py] --> B[Security Integration\nsecure_helper_integration.py]
+    B --> C[Bridge Manager\nhelper_bridge_integration.py]
+    C --> D[Tool Registry]
+    D --> E[VoiceOS Tools]
+    F[Helper Monitor\nhelper_extension_monitoring.py] --> C
 ```
 
-### Key Components
+### Components
 
-#### 1. Secure Helper Integration (`core/helpers/secure_helper_integration.py`)
+#### 1. `core/helpers/secure_helper_integration.py`
 
-**Purpose**: Categorized helper function management
+Manages helper functions categorized by type:
 
-**Categories**:
-- `FILE_OPERATIONS` - File system operations
-- `WEB_OPERATIONS` - Web-related operations
-- `DATA_PROCESSING` - Data transformation
-- `SYSTEM_OPERATIONS` - System-level operations
-- `COMMUNICATION` - Network communication
-- `SECURITY` - Security utilities
-- `VALIDATION` - Data validation
-- `UTILITIES` - General utilities
-
-**API**:
 ```python
 from core.helpers.secure_helper_integration import get_secure_helper_adapter
 
 adapter = get_secure_helper_adapter()
 
-# Register helper module
-result = await adapter.register_helper_module("my_helpers", "/path/to/helpers")
+# Register a helper module
+result = await adapter.register_helper_module(
+    "file_helpers",
+    "/path/to/helpers/file_helpers.py"
+)
 
-# Execute helper function
-result = await adapter.execute_helper("my_helpers", "my_function", args, kwargs)
-```
+# List registered helpers
+helpers = adapter.get_registered_helpers()
 
-#### 2. Helper Bridge Integration (`core/helpers/helper_bridge_integration.py`)
-
-**Purpose**: VoiceOS tool bridging with multiple modes
-
-**Bridge Modes**:
-- `DIRECT` - Direct helper execution
-- `WRAPPED` - Wrapped through VoiceOS tools
-- `SANDBOXED` - Sandboxed execution
-- `PROXY` - Proxy through VoiceOS interfaces
-
-**API**:
-```python
-from core.helpers.helper_bridge_integration import get_helper_bridge_manager
-
-bridge_manager = get_helper_bridge_manager(tool_registry)
-
-# Create bridge
-result = await bridge_manager.create_bridge(
-    helper_name="my_helpers",
-    function_name="my_function",
-    voiceos_tool_name="my_tool",
-    bridge_mode=BridgeMode.WRAPPED
+# Execute a helper function
+result = await adapter.execute_helper(
+    "file_helpers",
+    "read_json",
+    args=("data.json",),
+    kwargs={"encoding": "utf-8"}
 )
 ```
 
-#### 3. Helper Extension Discovery (`core/helpers/helper_extension_discovery.py`)
+**Helper categories:**
 
-**Purpose**: Background discovery and validation
+| Category | Examples |
+|---------|---------|
+| `FILE_OPERATIONS` | Read/write/parse files |
+| `WEB_OPERATIONS` | HTTP requests, URL parsing |
+| `DATA_PROCESSING` | JSON/CSV transform, encoding |
+| `SYSTEM_OPERATIONS` | Process management, env vars |
+| `COMMUNICATION` | Network socket, messaging |
+| `SECURITY` | Hashing, encryption utilities |
+| `VALIDATION` | Schema validation, type checking |
+| `UTILITIES` | Datetime, string formatting |
 
-**Features**:
-- Automatic helper discovery
-- Validation and registration
-- Status monitoring
+---
 
-#### 4. Helper Extension Monitoring (`core/helpers/helper_extension_monitoring.py`)
+#### 2. `core/helpers/helper_bridge_integration.py`
 
-**Purpose**: System-wide helper metrics
+Creates bridges between helper functions and VoiceOS tools:
 
-**Metrics**:
-- Helper execution statistics
-- Performance metrics
-- Health monitoring
+```python
+from core.helpers.helper_bridge_integration import get_helper_bridge_manager, BridgeMode
+
+bridge = get_helper_bridge_manager(tool_registry)
+
+# Expose a helper function as a VoiceOS tool
+await bridge.create_bridge(
+    helper_name="file_helpers",
+    function_name="read_json",
+    voiceos_tool_name="json_reader",
+    bridge_mode=BridgeMode.WRAPPED      # Wrap with permission checks
+)
+```
+
+**Bridge modes:**
+
+| Mode | Description |
+|------|-------------|
+| `DIRECT` | Call helper function directly |
+| `WRAPPED` | Add permission checks and logging |
+| `SANDBOXED` | Execute in subprocess sandbox |
+| `PROXY` | Route through VoiceOS tool proxy |
+
+---
+
+#### 3. `core/helpers/helper_extension_discovery.py`
+
+Automatically discovers and registers helper modules from a directory:
+
+```python
+from core.helpers.helper_extension_discovery import get_helper_discovery
+
+discovery = get_helper_discovery()
+await discovery.start_background_discovery("/path/to/helpers/")
+status = discovery.get_discovery_status()
+```
+
+---
+
+#### 4. `core/helpers/helper_extension_monitoring.py`
+
+Tracks helper usage and performance metrics across the entire system.
 
 ---
 
 ## 🔗 Extension System
 
-The extension system provides a hook-based extension framework with decorators.
+The extension system provides **hook-based interception points** at key moments in VoiceOS's processing pipeline.
 
 ### Architecture
 
 ```mermaid
 graph TB
     A[Extension Registration] --> B[Security Validation]
-    B --> C[Extension Points]
-    C --> D[Hook Execution]
+    B --> C[Extension Point Registry]
+    C --> D[Hook Execution Engine]
     D --> E[Decorator System]
-    E --> F[VoiceOS Integration]
+    E --> F[VoiceOS Pipeline]
 ```
 
-### Key Components
+### Extension Points
 
-#### 1. Secure Extension Integration (`core/extensions/secure_extension_integration.py`)
+| Point | Constant | When it fires |
+|-------|---------|--------------|
+| Before tool execution | `BEFORE_TOOL_EXECUTION` | Just before any tool method is called |
+| After tool execution | `AFTER_TOOL_EXECUTION` | Immediately after tool returns |
+| Before LLM request | `BEFORE_LLM_REQUEST` | Before sending prompt to LLM |
+| After LLM response | `AFTER_LLM_RESPONSE` | After LLM returns response |
+| Data processing | `DATA_PROCESSING` | During data transformation |
+| Input validation | `USER_INPUT_VALIDATION` | When validating user input |
+| Error handling | `ERROR_HANDLING` | When an error is caught |
+| Logging | `LOGGING_EXTENSION` | On each log write |
+| System startup | `SYSTEM_STARTUP` | During VoiceOS initialization |
+| System shutdown | `SYSTEM_SHUTDOWN` | During graceful shutdown |
 
-**Purpose**: Extension type management and security
+### Decorator-Based Extensions
 
-**Extension Types**:
-- `HOOK` - Function hook extensions
-- `FILTER` - Data filter extensions
-- `TRANSFORMER` - Data transformer extensions
-- `VALIDATOR` - Data validator extensions
-- `PROVIDER` - Service provider extensions
-- `MIDDLEWARE` - Middleware extensions
+```python
+from core.extensions.extension_point_system import (
+    before_tool_execution,
+    after_tool_execution,
+    before_llm_request,
+    after_llm_response,
+    data_processing,
+    user_input_validation,
+    error_handling,
+    logging_decorator
+)
 
-**API**:
+# Hook: runs before any tool execution
+@before_tool_execution
+async def log_tool_start(context: Dict[str, Any]) -> Dict[str, Any]:
+    print(f"Starting tool: {context['tool_name']}.{context['method']}")
+    context["__start_time"] = time.monotonic()
+    return context
+
+# Hook: runs after any tool execution
+@after_tool_execution
+async def log_tool_end(context: Dict[str, Any]) -> Dict[str, Any]:
+    elapsed = time.monotonic() - context.get("__start_time", time.monotonic())
+    print(f"Tool finished in {elapsed:.3f}s")
+    return context
+
+# Hook: transform LLM prompts before sending
+@before_llm_request
+async def inject_system_context(context: Dict[str, Any]) -> Dict[str, Any]:
+    messages = context.get("messages", [])
+    messages.insert(0, {
+        "role": "system",
+        "content": "Always respond in English. Be concise."
+    })
+    context["messages"] = messages
+    return context
+
+# Hook: post-process LLM responses
+@after_llm_response
+async def format_response(context: Dict[str, Any]) -> Dict[str, Any]:
+    response = context.get("response", "")
+    context["response"] = response.strip()
+    return context
+```
+
+### Secure Extension Integration
+
 ```python
 from core.extensions.secure_extension_integration import get_secure_extension_manager
 
 manager = get_secure_extension_manager()
 
-# Register extension
-result = await manager.register_extension("my_extension", extension_path)
+# Register an extension from a file
+await manager.register_extension("my_extension", "/path/to/extension.py")
 
-# Execute extension
-result = await manager.execute_extension("my_extension", ExtensionPoint.BEFORE_TOOL_EXECUTION, context)
-```
-
-#### 2. Extension Point System (`core/extensions/extension_point_system.py`)
-
-**Purpose**: Hook-based extension with decorators
-
-**Extension Points**:
-- `BEFORE_TOOL_EXECUTION` - Before tool execution
-- `AFTER_TOOL_EXECUTION` - After tool execution
-- `BEFORE_LLM_REQUEST` - Before LLM request
-- `AFTER_LLM_RESPONSE` - After LLM response
-- `DATA_PROCESSING` - Data processing
-- `USER_INPUT_VALIDATION` - User input validation
-- `SYSTEM_STARTUP` - System startup
-- `SYSTEM_SHUTDOWN` - System shutdown
-- `ERROR_HANDLING` - Error handling
-- `LOGGING_EXTENSION` - Logging
-
-**Hook Types**:
-- `BEFORE` - Execute before main operation
-- `AFTER` - Execute after main operation
-- `AROUND` - Execute around main operation
-- `ERROR` - Execute on error
-- `FINALLY` - Execute finally
-
-**Decorators**:
-```python
-from core.extensions.extension_point_system import (
-    before_tool_execution, after_tool_execution,
-    before_llm_request, after_llm_response,
-    data_processing, user_input_validation,
-    error_handling, logging_decorator
+# Execute extension at a specific point
+result = await manager.execute_extension(
+    "my_extension",
+    ExtensionPoint.BEFORE_TOOL_EXECUTION,
+    context={"tool_name": "enhanced_file_manager", "method": "read_file"}
 )
-
-# Use decorators
-@before_tool_execution
-async def my_tool_hook(context):
-    print("Before tool execution")
-
-@after_tool_execution
-async def my_tool_after_hook(context):
-    print("After tool execution")
 ```
+
+**Extension types:** `HOOK`, `FILTER`, `TRANSFORMER`, `VALIDATOR`, `PROVIDER`, `MIDDLEWARE`
+
+**Hook priority (execution order):** `HIGHEST → HIGH → NORMAL → LOW → LOWEST`
 
 ---
 
 ## 📊 Integration Framework
 
-The integration framework provides standardized integration approaches and controlled execution.
+### Integration Patterns (`core/integration/integration_patterns.py`)
 
-### Key Components
+Standardized patterns for component integration:
 
-#### 1. Integration Patterns (`core/integration/integration_patterns.py`)
+| Pattern | Description | Use Case |
+|---------|-------------|---------|
+| `EVENT_DRIVEN` | Communicate via EventBus | Loose coupling between components |
+| `PROXY_PATTERN` | Proxy through VoiceOS interfaces | Controlled access to external APIs |
+| `ADAPTER_PATTERN` | Adapt to VoiceOS contracts | Integrating third-party libraries |
+| `GATEWAY_PATTERN` | Single validated entry point | External service integration |
+| `OBSERVER_PATTERN` | Subscribe to state changes | Monitoring and reactive updates |
 
-**Purpose**: Standardized integration approaches
+---
 
-**Patterns**:
-- `EVENT_DRIVEN` - Loose coupling via events
-- `PROXY_PATTERN` - Proxy through VoiceOS interfaces
-- `ADAPTER_PATTERN` - Adapt to VoiceOS contracts
-- `GATEWAY_PATTERN` - Gateway with validation
-- `OBSERVER_PATTERN` - Observer for loose coupling
+### Controlled Execution (`core/integration/controlled_execution.py`)
 
-#### 2. Controlled Execution (`core/integration/controlled_execution.py`)
+Execute code with enforced resource limits:
 
-**Purpose**: Sandboxed execution with resource limits
-
-**Execution Modes**:
-- `SAFE_MODE` - Read-only operations only
-- `RESTRICTED_MODE` - Limited system access
-- `SANDBOXED_MODE` - Full sandbox isolation
-- `ISOLATED_MODE` - Complete process isolation
-
-**API**:
 ```python
-from core.integration.controlled_execution import get_controlled_execution_manager
+from core.integration.controlled_execution import (
+    get_controlled_execution_manager,
+    ExecutionLimits,
+    ExecutionMode
+)
 
 manager = get_controlled_execution_manager()
 
-# Execute with limits
+# Execute with strict limits
 result = await manager.execute_with_limits(
-    target_function,
-    args,
-    kwargs,
+    target_function=my_function,
+    args=(arg1,),
+    kwargs={"key": "val"},
     limits=ExecutionLimits(
-        max_execution_time=30.0,
+        max_execution_time=30.0,         # seconds
         max_memory_mb=512,
-        max_cpu_percent=80
-    )
+        max_cpu_percent=80,
+        max_open_files=50,
+        max_network_connections=10
+    ),
+    mode=ExecutionMode.SANDBOXED_MODE
 )
 ```
+
+**Execution modes:**
+
+| Mode | Description |
+|------|-------------|
+| `SAFE_MODE` | Read-only operations only |
+| `RESTRICTED_MODE` | Limited system access |
+| `SANDBOXED_MODE` | Full sandbox via subprocess |
+| `ISOLATED_MODE` | Complete process isolation |
 
 ---
 
 ## 📈 Monitoring & Dashboard
 
-### Key Components
+### Performance Monitor (`core/monitoring/performance_monitor.py`)
 
-#### 1. Performance Monitor (`core/monitoring/performance_monitor.py`)
+Real-time performance tracking:
 
-**Purpose**: Real-time system performance tracking
+```python
+from core.monitoring.performance_monitor import get_performance_monitor
 
-**Metrics**:
-- Execution times
-- Memory usage
-- CPU usage
-- Error rates
-- System health
+monitor = get_performance_monitor()
 
-#### 2. Error Recovery (`core/monitoring/error_recovery.py`)
+# Get current metrics
+metrics = monitor.get_current_metrics()
+print(f"CPU: {metrics['cpu_percent']:.1f}%")
+print(f"Memory: {metrics['memory_mb']:.0f} MB")
+print(f"Active tasks: {metrics['active_tasks']}")
 
-**Purpose**: Automatic error detection and recovery
+# Get tool execution statistics
+stats = monitor.get_tool_stats("enhanced_file_manager")
+print(f"Calls: {stats['total_calls']}")
+print(f"Avg time: {stats['avg_execution_ms']:.0f}ms")
+print(f"Error rate: {stats['error_rate']:.2%}")
+```
 
-**Features**:
-- Error categorization
-- Automatic recovery strategies
-- Error reporting and analytics
+---
 
-#### 3. Unified Dashboard (`core/system/unified_integration_dashboard.py`)
+### Error Recovery (`core/monitoring/error_recovery.py`)
 
-**Purpose**: Centralized management interface
+Automatic error detection and recovery:
 
-**Views**:
-- `OVERVIEW` - System overview
-- `PLUGINS` - Plugin management
-- `HELPERS` - Helper management
-- `EXTENSIONS` - Extension management
-- `MONITORING` - Performance monitoring
-- `SECURITY` - Security status
-- `CONFIGURATION` - System configuration
+```python
+from core.monitoring.error_recovery import get_error_recovery_manager
 
-**API**:
+recovery = get_error_recovery_manager()
+
+# Register a recovery strategy
+@recovery.register_strategy("connection_timeout")
+async def handle_timeout(error: Exception, context: Dict) -> bool:
+    """Return True if recovery was successful"""
+    await asyncio.sleep(2)
+    return True   # Signal: retry the operation
+
+# Get error analytics
+analytics = recovery.get_error_analytics()
+```
+
+---
+
+### Unified Dashboard (`core/system/unified_integration_dashboard.py`)
+
+Single view of all integration subsystems:
+
 ```python
 from core.system.unified_integration_dashboard import get_unified_integration_dashboard
 
 dashboard = get_unified_integration_dashboard()
 
-# Get system status
+# Overall system health
 status = dashboard.get_system_status()
+print(f"System status: {status['overall']}")
+print(f"Active plugins: {status['plugins']['active']}")
+print(f"Registered helpers: {status['helpers']['registered']}")
 
-# Get system metrics
+# Real-time performance metrics
 metrics = dashboard.get_system_metrics()
 
-# Get available views
+# Available dashboard views
 views = dashboard.get_available_views()
+# ['OVERVIEW', 'PLUGINS', 'HELPERS', 'EXTENSIONS', 'MONITORING', 'SECURITY', 'CONFIGURATION']
 ```
 
 ---
 
-## 🔄 Migration Guide
+### System Verification (`core/system/system_verification.py`)
 
-### Import Path Changes
+Automated health checks for all subsystems:
 
-The core restructuring has changed import paths. Here's how to update your code:
-
-#### Before (Old Structure)
 ```python
-from core.secure_plugin_integration import get_secure_plugin_adapter
-from core.event_bus import EventBus
-from core.events import Events
+from core.system.system_verification import VoiceOSSystemVerification
+
+verifier = VoiceOSSystemVerification()
+results = await verifier.verify_all_systems()
+
+print(f"Overall: {results.overall_status}")   # PASSED | PARTIAL | FAILED
+
+for component, result in results.component_results.items():
+    icon = "✅" if result.status == "PASSED" else "❌"
+    print(f"  {icon} {component}: {result.message}")
 ```
 
-#### After (New Structure)
-```python
-from core.plugins.secure_plugin_integration import get_secure_plugin_adapter
-from core.events.event_bus import EventBus
-from core.events.events import Events
+**Components verified:**
+- EventBus connectivity
+- Tool registry population
+- Plugin system initialization
+- Permission engine availability
+- Memory manager connectivity
+- LLM client reachability
+- Workspace directory permissions
+
+---
+
+## ✍️ Writing a Plugin
+
+### 1. Create Plugin Directory
+
+```
+plugins/my_plugin/
+├── plugin.py            # Required: main plugin class
+├── plugin.yaml          # Required: metadata
+├── tools.py             # Optional: additional tool classes
+└── README.md            # Optional: plugin documentation
 ```
 
-### Complete Import Path Mapping
+### 2. Define Metadata (`plugin.yaml`)
 
-| Old Path | New Path |
-|----------|----------|
+```yaml
+name: "my_plugin"
+version: "1.0.0"
+description: "My custom VoiceOS plugin"
+author: "Your Name"
+min_voiceos_version: "1.0.0"
+dependencies: []
+permissions:
+  - file_read
+  - web_access
+```
+
+### 3. Implement Plugin Class (`plugin.py`)
+
+```python
+from core.plugins.secure_plugin_integration import VoiceOSPluginInterface
+from typing import Dict, Any, Optional
+
+class MyPlugin(VoiceOSPluginInterface):
+    def __init__(self):
+        super().__init__(
+            name="my_plugin",
+            version="1.0.0",
+            description="My custom plugin",
+            author="Your Name"
+        )
+        self.data = {}
+
+    async def initialize(self, context: Dict[str, Any]) -> None:
+        """Called once when plugin is activated"""
+        self.logger.info(f"{self.name} initialized")
+        self.data = context.get("config", {})
+
+    async def execute(self, command: str, context: Dict[str, Any]) -> Optional[str]:
+        """Called when the plugin receives a command"""
+        if command == "hello":
+            return f"Hello from {self.name}!"
+        elif command == "status":
+            return f"Plugin active with {len(self.data)} config entries"
+        return None
+
+    def get_tools(self):
+        """Return any additional VoiceOS tools this plugin provides"""
+        return []
+
+    async def cleanup(self) -> None:
+        """Called when plugin is deactivated or system shuts down"""
+        self.data.clear()
+        self.logger.info(f"{self.name} cleaned up")
+```
+
+### 4. Load the Plugin
+
+```python
+from core.plugins.complete_plugin_integration import get_complete_plugin_system
+
+system = get_complete_plugin_system()
+await system.enable_plugin("my_plugin")
+```
+
+---
+
+## ✍️ Writing an Extension
+
+```python
+# my_extension.py
+from core.extensions.extension_point_system import before_tool_execution, after_tool_execution
+from typing import Dict, Any
+import time
+
+@before_tool_execution
+async def performance_tracker_start(context: Dict[str, Any]) -> Dict[str, Any]:
+    """Track when each tool call starts"""
+    context["_perf_start"] = time.monotonic()
+    return context
+
+@after_tool_execution
+async def performance_tracker_end(context: Dict[str, Any]) -> Dict[str, Any]:
+    """Log performance of each tool call"""
+    start = context.pop("_perf_start", None)
+    if start:
+        elapsed_ms = (time.monotonic() - start) * 1000
+        print(f"[PERF] {context.get('tool_name')}.{context.get('method')}: {elapsed_ms:.1f}ms")
+    return context
+```
+
+Register via the extension manager:
+```python
+from core.extensions.secure_extension_integration import get_secure_extension_manager
+manager = get_secure_extension_manager()
+await manager.register_extension("performance_tracker", "my_extension.py")
+```
+
+---
+
+## ✍️ Writing a Helper
+
+```python
+# my_helpers/data_helpers.py
+"""VoiceOS-compatible helper functions for data processing."""
+
+import json
+from pathlib import Path
+from typing import Any, Dict
+
+def load_json_file(file_path: str) -> Dict[str, Any]:
+    """Load and parse a JSON file."""
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {file_path}")
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_json_file(file_path: str, data: Any, indent: int = 2) -> bool:
+    """Save data to a JSON file."""
+    path = Path(file_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=indent)
+    return True
+```
+
+Register with the helper system:
+```python
+from core.helpers.secure_helper_integration import get_secure_helper_adapter
+
+adapter = get_secure_helper_adapter()
+await adapter.register_helper_module("data_helpers", "my_helpers/data_helpers.py")
+
+# Now usable
+result = await adapter.execute_helper("data_helpers", "load_json_file", args=("config.json",))
+```
+
+---
+
+## 📑 Import Path Reference
+
+| Old Import Path | New Import Path |
+|----------------|----------------|
 | `core.secure_plugin_integration` | `core.plugins.secure_plugin_integration` |
 | `core.plugin_lifecycle` | `core.plugins.plugin_lifecycle` |
 | `core.plugin_registry` | `core.plugins.plugin_registry` |
@@ -539,143 +818,12 @@ from core.events.events import Events
 
 ---
 
-## 💡 Examples
+## 📚 Related Documentation
 
-### Example 1: Creating a Plugin
-
-```python
-# my_plugin/plugin.py
-from core.plugins.secure_plugin_integration import VoiceOSPluginInterface
-
-class MyPlugin(VoiceOSPluginInterface):
-    def __init__(self):
-        super().__init__(
-            name="my_plugin",
-            version="1.0.0",
-            description="My custom plugin",
-            author="Your Name"
-        )
-    
-    async def initialize(self, context):
-        """Initialize plugin"""
-        self.logger.info("My plugin initialized")
-    
-    async def execute(self, command, context):
-        """Execute plugin command"""
-        if command == "hello":
-            return "Hello from my plugin!"
-        return None
-    
-    async def cleanup(self):
-        """Cleanup plugin resources"""
-        self.logger.info("My plugin cleaned up")
-```
-
-### Example 2: Creating an Extension
-
-```python
-# my_extension/extension.py
-from core.extensions.extension_point_system import before_tool_execution
-
-@before_tool_execution
-async def my_tool_hook(context):
-    """Hook that runs before tool execution"""
-    print(f"About to execute tool: {context.get('tool_name')}")
-    # Modify context if needed
-    context['start_time'] = time.time()
-    return context
-```
-
-### Example 3: Creating a Helper
-
-```python
-# my_helpers/helpers.py
-import os
-from pathlib import Path
-
-def read_file_safely(file_path: str) -> str:
-    """Safely read a file"""
-    path = Path(file_path)
-    if not path.exists():
-        raise FileNotFoundError(f"File not found: {file_path}")
-    
-    # Security check - ensure file is in allowed directory
-    if not str(path).startswith("/allowed/path"):
-        raise PermissionError("Access denied")
-    
-    return path.read_text()
-
-def write_file_safely(file_path: str, content: str) -> bool:
-    """Safely write to a file"""
-    path = Path(file_path)
-    
-    # Security check
-    if not str(path).startswith("/allowed/path"):
-        raise PermissionError("Access denied")
-    
-    path.write_text(content)
-    return True
-```
-
-### Example 4: Integration with Dashboard
-
-```python
-# my_integration.py
-from core.system.unified_integration_dashboard import get_unified_integration_dashboard
-
-class MyIntegration:
-    def __init__(self):
-        self.dashboard = get_unified_integration_dashboard()
-    
-    async def register_custom_metrics(self):
-        """Register custom metrics with dashboard"""
-        await self.dashboard.register_metric_source(
-            "my_integration",
-            self.get_custom_metrics
-        )
-    
-    def get_custom_metrics(self):
-        """Return custom metrics"""
-        return {
-            "custom_counter": 42,
-            "custom_status": "healthy",
-            "last_update": time.time()
-        }
-```
-
----
-
-## 🔧 System Verification
-
-Use the built-in system verification to ensure all components are working:
-
-```python
-from core.system.system_verification import VoiceOSSystemVerification
-
-# Run verification
-verifier = VoiceOSSystemVerification()
-results = await verifier.verify_all_systems()
-
-# Check results
-if results.overall_status == "PASSED":
-    print("All systems ready!")
-else:
-    print("Some systems need attention:")
-    for component, result in results.component_results.items():
-        if result.status != "PASSED":
-            print(f"  {component}: {result.message}")
-```
-
----
-
-## 📚 Additional Resources
-
-- [API Reference](api_reference.md) - Detailed API documentation
-- [Architecture Overview](architecture.md) - System architecture
-- [Setup Guide](setup.md) - Installation and setup
-- [Usage Guide](usage.md) - How to use VoiceOS
-
----
-
-**Last Updated**: 2026-05-06
-**Version**: 2.0.0 (Core Restructuring)
+| Document | Link |
+|---------|------|
+| API Reference | [api_reference.md](api_reference.md) |
+| Architecture | [architecture.md](architecture.md) |
+| Agent System | [agents.md](agents.md) |
+| Setup Guide | [setup.md](setup.md) |
+| Usage Guide | [usage.md](usage.md) |

@@ -1,7 +1,7 @@
 # VoiceOS Multi-Agent Operating System - Docker Configuration
 # Voice + CLI driven AI system with safe system control
 
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 # Set environment variables
 ENV PYTHONPATH=/app
@@ -37,7 +37,7 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt chardet
 
 # Additional dependencies for Docker environment
 RUN pip install --no-cache-dir \
@@ -98,8 +98,8 @@ EXPOSE 8000
 RUN echo '#!/bin/bash\n\
 python -c "import sys; sys.exit(0)" 2>/dev/null && echo "healthy" || echo "unhealthy"' > /app/healthcheck.sh && \
 chmod +x /app/healthcheck.sh
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD /app/healthcheck.sh
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python main.py --test || exit 1
 
 # Set entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]

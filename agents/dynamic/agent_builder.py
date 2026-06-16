@@ -30,12 +30,10 @@ class DynamicAgent:
     created_at: str
 
 class AgentBuilder:
-    def __init__(self):
+    def __init__(self, tool_registry=None):
         self.roles_path = "agents/roles"
         self.prompt_loader = PromptLoader()
-        self.tool_registry = {}
-        
-        # Cache built agents for performance
+        self.tool_registry = tool_registry
         self._agent_cache = {}
         
     async def build_agent(self, role: str, intent: str, context: Dict[str, Any]) -> Optional[DynamicAgent]:
@@ -116,66 +114,19 @@ class AgentBuilder:
             return None
     
     async def _load_tools(self, tool_names: List[str]) -> Dict[str, Any]:
-        """
-        Load tools for the agent
-        """
-        tools = {}
-        
+        """Resolve tools from the central registry only."""
+        tools: Dict[str, Any] = {}
+        if not self.tool_registry:
+            logger.warning("No tool registry attached to AgentBuilder")
+            return tools
+
         for tool_name in tool_names:
-            if tool_name in self.tool_registry:
-                tools[tool_name] = self.tool_registry[tool_name]
+            registration = self.tool_registry.get_tool(tool_name)
+            if registration:
+                tools[tool_name] = registration
             else:
-                # Try to import and instantiate tool
-                tool = await self._import_tool(tool_name)
-                if tool:
-                    tools[tool_name] = tool
-                    self.tool_registry[tool_name] = tool
-                else:
-                    logger.warning(f"Failed to load tool: {tool_name}")
-        
+                logger.warning("Tool not registered: %s", tool_name)
         return tools
-    
-    async def _import_tool(self, tool_name: str) -> Optional[Any]:
-        """
-        Import and instantiate a tool by name
-        """
-        try:
-            # Map tool names to module paths
-            tool_modules = {
-                'web_search': 'tools.web_search',
-                'content_extractor': 'tools.content_extractor',
-                'summarizer': 'tools.summarizer',
-                'data_processor': 'tools.data_processor',
-                'comparison_engine': 'tools.comparison_engine',
-                'code_editor': 'tools.code_editor',
-                'file_manager': 'tools.file_manager',
-                'test_runner': 'tools.test_runner',
-                'text_processor': 'tools.text_processor',
-                'formatter': 'tools.formatter'
-            }
-            
-            module_path = tool_modules.get(tool_name)
-            if not module_path:
-                logger.warning(f"Unknown tool: {tool_name}")
-                return None
-            
-            # Import module
-            module = __import__(module_path, fromlist=[tool_name])
-            
-            # Get tool class (assume class name matches tool_name with CamelCase)
-            tool_class_name = ''.join(word.capitalize() for word in tool_name.split('_'))
-            tool_class = getattr(module, tool_class_name, None)
-            
-            if not tool_class:
-                logger.warning(f"Tool class not found: {tool_class_name}")
-                return None
-            
-            # Instantiate tool
-            return tool_class()
-            
-        except Exception as e:
-            logger.error(f"Failed to import tool {tool_name}: {e}")
-            return None
     
     def _customize_config(self, config: AgentConfig, intent: str, context: Dict[str, Any]) -> AgentConfig:
         """

@@ -1,6 +1,6 @@
 # 🧠 VoiceOS Architecture
 
-VoiceOS is built using a **hybrid multi-agent architecture** with real-time and autonomous capabilities, featuring native VoiceOS tools integration and comprehensive safety systems.
+VoiceOS is built on a **hybrid multi-agent event-driven architecture**. This document explains every system layer — from voice input to tool execution and back — along with security, state management, and extensibility.
 
 ---
 
@@ -8,447 +8,401 @@ VoiceOS is built using a **hybrid multi-agent architecture** with real-time and 
 
 ```mermaid
 graph TB
-    A[Voice/CLI Input] --> B[Input Processing]
-    B --> C[Planner Agent]
-    C --> D{Task Classification}
-    
-    D -->|Simple| E[Direct Tool Execution]
-    D -->|Complex| F[Dynamic Agent]
-    D -->|Autonomous| G[Autonomous Agent Loop]
-    
-    E --> H[VoiceOS Tools]
-    F --> H
-    G --> I[Tool Generator]
-    G --> J[Tool Executor]
-    I --> H
-    J --> H
-    
-    H --> K[Safety & Permissions]
-    K --> L[Workspace Sandbox]
-    L --> M[Execution Results]
-    M --> N[Output Processing]
-    N --> O[TTS/CLI Output]
-    
-    G --> P[Think → Decide → Act → Observe]
-    P --> G
+    subgraph Input Layer
+        MIC[Microphone]
+        CLI[CLI Prompt]
+    end
+
+    subgraph Voice Pipeline
+        STT[Whisper STT\nfaster-whisper]
+        BKCH[Backchannel Engine]
+        INT[Interrupt Controller]
+        TTS[Kokoro / Coqui TTS]
+    end
+
+    subgraph Core
+        EB[Event Bus\nasyncio pub/sub]
+        ORCH[Orchestrator]
+        PLAN[Planner Agent]
+        ROUTE[Router Agent]
+        SAFE[Safety Agent]
+        PERM[Permission Engine\nLOW · MEDIUM · HIGH]
+        MEM[Memory Manager]
+    end
+
+    subgraph Agent Layer
+        DYNC[Dynamic Agents\nResearcher · Developer · Analyst]
+        AUTO[Autonomous Loop\nThink → Decide → Act → Observe]
+        META[Meta-Planner\nparallel workflows]
+    end
+
+    subgraph Tool Layer
+        FILE[EnhancedFileManager]
+        WEB[BrowserTool]
+        CODE[CodeExecutor]
+        DOC[DocumentProcessor]
+        SCHED[TaskScheduler]
+        OS[OS Control\npyautogui · pynput · pygetwindow]
+        PLUG[24 Plugins]
+    end
+
+    subgraph Workspace
+        WS[Sandboxed workspace/task_id/]
+        AUDIT[Audit Log]
+    end
+
+    MIC --> STT --> EB
+    CLI --> EB
+    EB --> ORCH --> PLAN --> ROUTE
+    ROUTE -->|Simple| FILE & WEB & CODE & OS
+    ROUTE -->|Complex| DYNC
+    ROUTE -->|Autonomous| AUTO
+    META --> DYNC & AUTO
+    DYNC & AUTO --> FILE & WEB & CODE & DOC & SCHED & OS & PLUG
+    FILE & WEB & CODE & DOC & SCHED & OS & PLUG --> PERM
+    PERM --> SAFE --> WS
+    SAFE --> AUDIT
+    ORCH --> MEM
+    ORCH --> EB --> TTS
+    INT --> TTS
+    BKCH --> EB
 ```
 
 ---
 
-## 📚 Core Architecture Layers
+## 📚 Architecture Layers
 
 ### 1. Input Layer
-**Purpose**: Capture and process user input from multiple modalities
 
-**Components**:
-- **Voice Input**: Real-time speech-to-text (Whisper)
-- **CLI Input**: Command-line interface for text input
-- **Web Interface**: Browser-based interaction
-- **API Interface**: RESTful API for programmatic access
+Users interact via three modalities:
 
-**Features**:
-- Multi-modal input support
-- Real-time processing
-- Input validation and sanitization
+| Mode | Mechanism |
+|------|-----------|
+| **Voice** | Microphone → `VoicePipeline` → Whisper STT → Event Bus |
+| **CLI** | Terminal prompt at `VoiceOS>` → Event Bus directly |
+| **Hybrid** (default) | Both simultaneously; voice and CLI work in parallel |
+
+The `VoicePipeline` (`audio/voice_pipeline.py`) captures raw audio, detects speech activity via `webrtcvad`, and feeds audio chunks to the streaming STT engine.
 
 ---
 
-### 2. Planning Layer
-**Purpose**: Analyze input and determine optimal execution strategy
+### 2. Voice Pipeline
 
-**Components**:
-- **Planner Agent**: Task classification and planning
-- **Router Agent**: Direct tasks to appropriate executors
-- **Context Manager**: Maintain conversation context
+| Component | File | Role |
+|-----------|------|------|
+| `VoicePipeline` | `audio/voice_pipeline.py` | Orchestrates microphone and STT |
+| `StreamingSTT` | `audio/streaming_stt.py` | Real-time Whisper transcription |
+| `BackchannelEngine` | `listener/backchannel_engine.py` | Active listening signals |
+| `InterruptController` | `interrupt/interrupt_controller.py` | Detects user interruptions mid-TTS |
+| `SpeechState` | `interrupt/speech_state.py` | Tracks whether TTS is speaking |
+| `TTSController` | `interrupt/tts_controller.py` | Routes text to TTS engine |
+| TTS Engine | `tts/engine_factory.py` | Kokoro (default) or Coqui factory |
 
-**Task Types**:
-- **Simple**: Direct tool execution (low latency)
-- **Complex**: Dynamic agent involvement
-- **Autonomous**: Iterative agent loop execution
-
----
-
-### 3. Agent Layer
-**Purpose**: Execute tasks using specialized agents with appropriate capabilities
-
-#### Core Agents
-- **Planner**: Task analysis and execution planning
-- **Router**: Task routing and agent selection
-- **Safety**: Risk assessment and permission validation
-
-#### Dynamic Agents
-- **Researcher**: Information gathering and analysis
-- **Developer**: Code generation and development
-- **Analyst**: Data analysis and insights
-- **Custom**: YAML-defined specialized roles
-
-#### Autonomous Agent Loop
-- **Iterative Reasoning**: Think → Decide → Act → Observe
-- **Tool Generation**: Dynamic tool creation
-- **Self-Correction**: Error handling and strategy adjustment
+**Interrupt handling**: If the user begins speaking while TTS is playing, `InterruptController` signals `TTSController` to stop immediately, enabling natural conversation flow.
 
 ---
 
-### 4. Tool Layer
-**Purpose**: Provide secure, sandboxed execution capabilities
+### 3. Event Bus
 
-#### Native VoiceOS Tools
-- **File Tools**: `enhanced_file_manager`
-  - Safe file operations within workspace
-  - Permission-based access control
-  - Comprehensive audit logging
+The **Event Bus** (`core/events/event_bus.py`) is the central nervous system of VoiceOS. All components communicate through it rather than direct coupling:
 
-- **Web Tools**: `browser_tool`
-  - URL validation and web scraping
-  - Content size limits
-  - Search engine integration
-
-- **Code Tools**: `code_executor`
-  - Sandboxed code execution
-  - Resource limits and timeouts
-  - Multi-language support
-
-- **Document Tools**: `document_processor`
-  - PDF/DOCX/TXT processing
-  - Text extraction and analysis
-  - Format conversion
-
-- **Scheduler Tools**: `task_scheduler`
-  - Task scheduling and management
-  - Time-based execution
-  - Status tracking
-
----
-
-### 5. Safety & Permission Layer
-**Purpose**: Ensure secure execution with proper authorization
-
-**Components**:
-- **Permission Engine**: Multi-level permission system
-  - **LOW**: Safe read operations
-  - **MEDIUM**: File creation, web access
-  - **HIGH**: System operations, deletion
-
-- **Safety Module**: Risk assessment and validation
-- **Audit System**: Comprehensive operation logging
-- **Sandbox**: Isolated execution environments
-
----
-
-### 6. Workspace Layer
-**Purpose**: Provide isolated, managed execution environments
-
-**Structure**:
 ```
-workspace/
-├── task_[id]/           # Task-specific workspace
-│   ├── tools/          # Generated tools
-│   ├── data/           # Task data
-│   ├── logs/           # Operation logs
-│   └── output/         # Results
-├── logs/               # Global logs
-├── temp/               # Temporary files
-└── shared/             # Shared resources
+Component A --[publish event]--> EventBus --[notify subscribers]--> Component B
 ```
 
-**Features**:
-- Task isolation
-- Automatic cleanup
-- Resource monitoring
-- Access control
+Key event types (`core/events/events.py`):
+
+| Event | Publisher | Subscriber |
+|-------|-----------|-----------|
+| `USER_VOICE_INPUT` | VoicePipeline | Orchestrator |
+| `USER_CLI_INPUT` | VoiceCLIIntegration | Orchestrator |
+| `ORCHESTRATOR_RESPONSE` | Orchestrator | TTSController, CLI |
+| `TASK_STARTED` | Orchestrator | EventHandlers |
+| `TASK_COMPLETED` | Orchestrator | EventHandlers, Memory |
+| `INTERRUPT_REQUESTED` | InterruptController | TTSController |
+| `TTS_STARTED` / `TTS_STOPPED` | TTSController | SpeechState |
+
+This design allows any component to be replaced or extended without changing others.
 
 ---
 
-### 7. Output Layer
-**Purpose**: Present results to users through appropriate channels
+### 4. Planning & Routing Layer
 
-**Components**:
-- **Text-to-Speech**: Natural voice output
-- **CLI Display**: Terminal-based output
-- **Web Interface**: Rich web-based presentation
-- **File Output**: Result file generation
+Every user command passes through two core agents before execution:
+
+#### Planner Agent (`agents/core/planner.py`)
+
+Analyzes the input and classifies it into an execution mode:
+
+| Classification | Criteria | Example |
+|---------------|---------|---------|
+| **Simple** | Single, direct action | "Open Chrome", "Take a screenshot" |
+| **Complex** | Requires research or multi-step reasoning | "Research AI trends", "Write a scraper" |
+| **Autonomous** | Open-ended goal needing iteration | "Build and test a full web scraper" |
+
+#### Router Agent (`agents/core/router.py`)
+
+Routes the classified task to the appropriate executor:
+
+```python
+if task.type == "simple":
+    route_to_tool_registry()
+elif task.type == "complex":
+    route_to_dynamic_agent(task.domain)   # researcher | developer | analyst
+elif task.type == "autonomous":
+    route_to_autonomous_loop()
+```
+
+For compound phrases (e.g., "research X then write code for Y"), the **Meta-Planner** splits the goal into parallel sub-tasks and coordinates artifact handoff between agents.
 
 ---
 
-## 🔄 Autonomous Agent Loop
+### 5. Agent Layer
 
-### Execution Cycle
+#### Core Agents (always-on)
+
+| Agent | File | Role |
+|-------|------|------|
+| Planner | `agents/core/planner.py` | Task classification and planning |
+| Router | `agents/core/router.py` | Task routing and agent selection |
+| Safety | `agents/core/safety.py` | Risk assessment and permission checks |
+
+#### Dynamic Agents (YAML-defined roles)
+
+Defined in `agents/roles/[role]/agent.yaml`. Three built-in roles:
+
+| Role | Specialization | Primary Tools |
+|------|---------------|--------------|
+| `researcher` | Web research and synthesis | BrowserTool, DocumentProcessor |
+| `developer` | Code generation and debugging | CodeExecutor, EnhancedFileManager |
+| `analyst` | Data analysis and reporting | DocumentProcessor, CodeExecutor |
+
+Custom roles can be added by creating a new directory under `agents/roles/`.
+
+#### Autonomous Agent Loop (`agents/autonomous/agent_loop.py`)
+
+The autonomous agent runs an iterative `Think → Decide → Act → Observe` cycle (up to 20 iterations, ~5 minutes):
+
 ```mermaid
 graph LR
-    A[Think] --> B[Decide]
-    B --> C[Act]
-    C --> D[Observe]
-    D --> E{Complete?}
+    A[Think\nAnalyze state, plan next step] --> B[Decide\nSelect tool, check permissions]
+    B --> C[Act\nExecute tool, handle errors]
+    C --> D[Observe\nAssess results, update state]
+    D --> E{Goal met?}
     E -->|No| A
-    E -->|Yes| F[Final Result]
+    E -->|Yes| F[Final Output]
 ```
 
-### Phase Details
+The autonomous agent can also **generate new tools on the fly** using the LLM and execute them in the sandboxed workspace.
 
-#### Think Phase
-- Analyze current state and progress
-- Review completed actions
-- Identify remaining objectives
-- Plan next steps
+---
 
-#### Decide Phase
-- Select optimal action based on context
-- Validate tool availability
-- Check permission requirements
-- Confirm execution strategy
+### 6. Tool Layer
 
-#### Act Phase
-- Execute selected tool or agent action
-- Apply safety validations
-- Monitor execution progress
-- Handle errors and exceptions
+All tools are registered in `ToolRegistry` and follow the same permission-gated interface.
 
-#### Observe Phase
-- Analyze action results
-- Update task state
-- Assess progress toward goals
-- Determine need for refinement
+#### Native VoiceOS Tools
+
+| Tool | Class | Location | Permission |
+|------|-------|----------|-----------|
+| File management | `EnhancedFileManager` | `tools/file_tools/` | LOW–HIGH |
+| Web browsing | `BrowserTool` | `tools/web_tools/` | LOW–MEDIUM |
+| Code execution | `CodeExecutor` | `tools/code_tools/` | HIGH |
+| Document processing | `DocumentProcessor` | `tools/document_tools/` | LOW–MEDIUM |
+| Task scheduling | `TaskScheduler` | `tools/scheduler_tools/` | MEDIUM |
+| OS control | Various | `tools/os_control/` | MEDIUM–HIGH |
+
+#### OS Control
+
+The OS control module (`tools/os_control/`) wraps:
+- **`pyautogui`** — keyboard and mouse simulation
+- **`pynput`** — low-level input listening
+- **`pygetwindow`** — window enumeration and focus
+- **`pyperclip`** — clipboard read/write
+- **`psutil`** — process management
+
+All OS operations require MEDIUM or HIGH permission and explicit user approval.
+
+#### Plugin Tools
+
+24 plugins in `plugins/` extend VoiceOS with additional capabilities. Plugins are discovered and loaded by `PluginLoader` at startup.
+
+---
+
+### 7. Safety & Permission Layer
+
+Every tool call is gated through the `PermissionEngine` (`permissions/`):
+
+```
+Agent → PermissionEngine.check_tool_permission(level) → Safety.validate_action() → Execute → AuditLog
+```
+
+| Level | Decorator | Examples | Approval |
+|-------|-----------|---------|---------|
+| `LOW` | `@check_permission(PermissionLevel.LOW)` | read_file, search_web | Silent |
+| `MEDIUM` | `@check_permission(PermissionLevel.MEDIUM)` | write_file, open_page | User prompt |
+| `HIGH` | `@check_permission(PermissionLevel.HIGH)` | delete_file, execute_code | Explicit approval |
+
+The Safety Agent additionally validates actions against a blocklist of dangerous patterns (e.g., deleting system files, accessing paths outside workspace).
+
+All operations are written to an **audit log** with timestamp, agent, tool, method, parameters, and outcome. Optional PostgreSQL persistence is available.
+
+---
+
+### 8. Workspace Layer
+
+Agents never operate on arbitrary filesystem paths. All work is confined to isolated workspace directories:
+
+```
+workspace/
+├── task_abc123/              # One directory per autonomous task
+│   ├── code/                 # Generated scripts
+│   ├── tools/                # Dynamically generated tools
+│   ├── data/                 # Task input data
+│   ├── output/               # Results and reports
+│   └── logs/                 # Task-specific logs
+├── shared/                   # Cross-task shared resources
+└── temp/                     # Temporary files (auto-cleaned)
+```
+
+The `EnhancedFileManager` path-checks every file operation against the workspace root and raises `ValueError` for any path traversal attempt.
+
+---
+
+### 9. Memory System
+
+`MemoryManager` (`memory/`) provides three tiers:
+
+| Tier | Scope | Storage | TTL |
+|------|-------|---------|-----|
+| **Working Memory** | Current task | In-memory | End of task |
+| **Short-Term Memory** | Current session | In-memory + file | 24 hours |
+| **Long-Term Memory** | Persistent | File (JSON) + optional ChromaDB | Never |
+
+Memory is wired into the `Orchestrator` via `EventHandlers`, which stores task outcomes and conversation context automatically.
+
+---
+
+### 10. Output Layer
+
+Results are delivered through:
+
+| Channel | Mechanism |
+|---------|-----------|
+| **TTS** | `TTSController` → Kokoro engine → system speakers |
+| **CLI** | `VoiceConsole` rich text output at the terminal prompt |
+| **Files** | Reports, code, and artifacts written to `workspace/task_[id]/output/` |
+
+---
+
+## 🔄 Complete Request Lifecycle
+
+```
+1. User speaks "Build a Python web scraper"
+2. VoicePipeline → Whisper → "Build a Python web scraper" (text)
+3. EventBus publishes USER_VOICE_INPUT
+4. Orchestrator picks up the event
+5. Planner classifies → "autonomous"
+6. Router routes → AutonomousAgentLoop
+7. Autonomous loop begins (up to 20 iterations):
+   a. Think: analyze goal, plan scraper structure
+   b. Decide: use CodeExecutor to generate scraper.py
+   c. Act: execute code in workspace/task_xyz/
+   d. Observe: check output, fix errors if any
+   e. Decide: use BrowserTool to test against a URL
+   f. Observe: confirm scraper works
+8. Final Result published → ORCHESTRATOR_RESPONSE event
+9. TTSController speaks: "I've built a web scraper at workspace/task_xyz/scraper.py"
+10. CLI prints the full result
+11. EventHandlers store outcome in MemoryManager
+12. Audit log records all tool calls and permissions
+```
 
 ---
 
 ## 🔐 Security Architecture
 
-### Permission Model
+### Permission Flow
+
 ```mermaid
 graph TD
-    A[User Request] --> B[Agent Analysis]
-    B --> C[Permission Check]
-    C --> D{Permission Level}
-    D -->|LOW| E[Execute Safely]
-    D -->|MEDIUM| F[User Confirmation]
-    D -->|HIGH| G[Strict Validation]
-    F --> E
-    G --> H[Manual Approval]
-    H --> E
-    E --> I[Log & Monitor]
+    A[Agent Tool Call] --> B[PermissionEngine.check_tool_permission]
+    B --> C{Level?}
+    C -->|LOW| D[Execute silently]
+    C -->|MEDIUM| E[Prompt user for confirmation]
+    C -->|HIGH| F[Require explicit approval]
+    E -->|Approved| D
+    F -->|Approved| D
+    D --> G[Safety.validate_action\ncheck blocklist]
+    G -->|Safe| H[Execute in workspace sandbox]
+    H --> I[Write to AuditLog]
 ```
 
-### Safety Measures
-- **Workspace Isolation**: All operations confined to workspace
-- **Input Validation**: Comprehensive input sanitization
-- **Resource Limits**: CPU, memory, and time restrictions
-- **Audit Logging**: Complete operation trail
-- **Permission Levels**: Hierarchical access control
+### Safety Measures Summary
+
+- **Workspace isolation** — `ValueError` on path traversal
+- **Input validation** — All tool inputs sanitized
+- **Code scanning** — Dangerous imports/patterns blocked in `CodeExecutor`
+- **Resource limits** — CPU, memory, and execution time caps in `controlled_execution.py`
+- **Audit logging** — Every action logged with full context
+- **Permission prompts** — User in control of MEDIUM/HIGH operations
 
 ---
 
-## 📊 Data Flow Architecture
+## 📊 Core Integration Systems
 
-### Input Processing
-1. **Capture**: Voice/CLI/Web input
-2. **Transcribe**: Speech-to-text conversion
-3. **Parse**: Natural language understanding
-4. **Validate**: Input sanitization and validation
+The `core/` directory houses the integration framework in organized subdirectories:
 
-### Task Execution
-1. **Classify**: Task type determination
-2. **Plan**: Execution strategy formulation
-3. **Execute**: Tool/agent execution
-4. **Monitor**: Progress tracking
-
-### Result Processing
-1. **Aggregate**: Collect execution results
-2. **Format**: Output formatting
-3. **Present**: Multi-modal output delivery
-4. **Store**: Result persistence
-
----
-
-## 🧩 Component Integration
-
-### Tool Registry
-- **Discovery**: Automatic tool detection
-- **Registration**: Tool metadata management
-- **Execution**: Secure tool invocation
-- **Monitoring**: Performance tracking
-
-### Plugin System
-- **Loading**: Dynamic plugin discovery
-- **Validation**: Security and compatibility checks
-- **Management**: Plugin lifecycle control
-- **Isolation**: Plugin sandboxing
-
-### Event System
-- **Publishing**: Event emission and handling
-- **Subscription**: Component communication
-- **Routing**: Event distribution
-- **Persistence**: Event logging
-
----
-
-## 🚀 Performance Architecture
-
-### Optimization Strategies
-- **Caching**: Result and tool caching
-- **Parallelism**: Concurrent execution
-- **Resource Pooling**: Shared resource management
-- **Lazy Loading**: On-demand component loading
-
-### Scalability Features
-- **Horizontal Scaling**: Multi-instance deployment
-- **Load Balancing**: Request distribution
-- **Resource Management**: Dynamic allocation
-- **Monitoring**: Performance metrics
-
----
-
-## 🔄 State Management
-
-### Agent States
-- **Active**: Currently executing tasks
-- **Idle**: Available for new tasks
-- **Suspended**: Temporarily paused
-- **Error**: Error state recovery
-
-### Task States
-- **Pending**: Awaiting execution
-- **Running**: Currently executing
-- **Completed**: Successfully finished
-- **Failed**: Execution failed
-- **Cancelled**: User cancelled
-
-### System States
-- **Initializing**: System startup
-- **Ready**: Operational
-- **Maintenance**: Under maintenance
-- **Shutdown**: System shutdown
-
----
-
-## � Core Integration Architecture
-
-VoiceOS features a **restructured core architecture** with comprehensive integration systems:
-
-### Core Structure Overview
 ```
 core/
-├── Root Components (7 files)
-│   ├── config.py, logger.py, event.py
-│   ├── security.py, orchestrator.py
-│   └── config_manager.py
-├── plugins/ (8 modules) - Plugin System
-├── helpers/ (4 modules) - Helper System  
-├── extensions/ (2 modules) - Extension System
-├── integration/ (2 modules) - Integration Framework
-├── monitoring/ (2 modules) - Performance & Error Recovery
-├── events/ (3 modules) - Event System
-├── cli/ (2 modules) - CLI Integration
-├── pipelines/ (1 module) - Stream Processing
-└── system/ (2 modules) - Management & Dashboard
+├── orchestrator.py            # Main system coordinator
+├── config.py                  # Config management (singleton)
+├── config_manager.py          # YAML config loading
+├── logger.py                  # Structured JSON logger
+├── security.py                # Security utilities
+├── event.py                   # Event dataclass
+├── events/                    # EventBus, Events enum, EventHandlers
+├── cli/                       # VoiceCLIIntegration, VoiceConsole, CLIFlowReporter
+├── plugins/                   # Plugin registry, lifecycle, config, error handling, monitoring
+├── helpers/                   # Secure helper integration and bridge
+├── extensions/                # Hook-based extension points and decorators
+├── integration/               # Integration patterns and controlled execution
+├── monitoring/                # PerformanceMonitor, ErrorRecovery
+├── pipelines/                 # StreamPipeline
+├── runtime/                   # RuntimeContext bootstrap
+├── distributed/               # Redis queue and distributed runtime
+└── system/                    # SystemVerification, UnifiedIntegrationDashboard
 ```
 
-### Plugin System Architecture
-```mermaid
-graph TB
-    A[Plugin Discovery] --> B[Security Validation]
-    B --> C[Plugin Registry]
-    C --> D[Lifecycle Management]
-    D --> E[Configuration Manager]
-    E --> F[Error Handler]
-    F --> G[Monitor]
-    G --> H[Test Framework]
-    H --> I[Complete Integration]
-```
-
-**Key Features**:
-- **Security-First**: All plugins undergo security validation
-- **State Management**: DISCOVERED → LOADING → ACTIVE → SUSPENDED
-- **Configuration**: Multi-scope configuration (GLOBAL, PLUGIN, USER, WORKSPACE, SESSION)
-- **Error Recovery**: Automatic error detection and recovery
-- **Real-time Monitoring**: Performance metrics and health tracking
-
-### Helper System Architecture
-```mermaid
-graph TB
-    A[Helper Discovery] --> B[Security Integration]
-    B --> C[Bridge Manager]
-    C --> D[Extension Discovery]
-    D --> E[Helper Monitor]
-    E --> F[VoiceOS Integration]
-```
-
-**Key Features**:
-- **Categorized Helpers**: FILE_OPERATIONS, WEB_OPERATIONS, DATA_PROCESSING, etc.
-- **Bridge Integration**: Multiple bridge modes (DIRECT, WRAPPED, SANDBOXED, PROXY)
-- **Tool Registry**: Seamless integration with VoiceOS tools
-- **Background Discovery**: Automatic helper detection and validation
-
-### Extension System Architecture
-```mermaid
-graph TB
-    A[Extension Registration] --> B[Security Validation]
-    B --> C[Extension Points]
-    C --> D[Hook Execution]
-    D --> E[Decorator System]
-    E --> F[VoiceOS Integration]
-```
-
-**Key Features**:
-- **Extension Types**: HOOK, FILTER, TRANSFORMER, VALIDATOR, PROVIDER, MIDDLEWARE
-- **Extension Points**: BEFORE/AFTER tool execution, LLM requests, data processing
-- **Decorator-Based**: Easy-to-use decorators for common extension points
-- **Priority System**: Hook execution priorities (HIGHEST → LOWEST)
-
-### Integration Framework
-```mermaid
-graph TB
-    A[Integration Patterns] --> B[Controlled Execution]
-    B --> C[Security Policies]
-    C --> D[Resource Limits]
-    D --> E[Performance Monitor]
-    E --> F[Error Recovery]
-```
-
-**Key Features**:
-- **Standardized Patterns**: Event-driven, Proxy, Adapter, Gateway, Observer
-- **Sandboxed Execution**: Resource limits and isolation
-- **Security Policies**: Multi-level security enforcement
-- **Real-time Monitoring**: Performance tracking and alerting
-
-### Unified Dashboard
-```mermaid
-graph TB
-    A[System Overview] --> B[Plugin Status]
-    A --> C[Helper Status]
-    A --> D[Extension Status]
-    A --> E[Security Status]
-    A --> F[Performance Metrics]
-    B --> G[Real-time Updates]
-    C --> G
-    D --> G
-    E --> G
-    F --> G
-```
-
-**Key Features**:
-- **Multi-View**: OVERVIEW, PLUGINS, HELPERS, EXTENSIONS, MONITORING, SECURITY
-- **Real-time Status**: Live system health and metrics
-- **Centralized Management**: Single interface for all integration systems
-- **System Verification**: Automated health checks and validation
+For detailed documentation on the integration framework, see [core_integration_systems.md](core_integration_systems.md).
 
 ---
 
-## �📈 Monitoring & Observability
+## ⚡ Performance Characteristics
 
-### Metrics Collection
-- **Performance**: Execution times and throughput
-- **Usage**: Tool and agent utilization
-- **Errors**: Failure rates and types
-- **Resources**: CPU, memory, disk usage
+| Path | Typical Latency |
+|------|----------------|
+| Simple tool call (OS control) | < 200 ms |
+| Complex task (dynamic agent) | 2–15 seconds |
+| Autonomous task (multi-step) | 1–5 minutes |
+| STT transcription (local Whisper base) | 0.5–2 seconds |
+| TTS synthesis and playback start | < 500 ms |
 
-### Logging Strategy
-- **Structured Logging**: JSON-formatted logs
-- **Log Levels**: Debug, Info, Warning, Error
-- **Rotation**: Automatic log rotation
-- **Retention**: Configurable log retention
+### Optimization Strategies
 
-### Health Monitoring
-- **Component Health**: Service status checks
-- **Resource Health**: System resource monitoring
-- **Dependency Health**: External service checks
-- **Alerting**: Threshold-based alerting
+- **Asyncio throughout** — All I/O is non-blocking
+- **Event-driven decoupling** — No polling; reactive to events
+- **Local models** — No network latency for core AI inference
+- **Lazy loading** — Plugins and models loaded on demand
+- **Result caching** — LLM response caching in memory
+
+---
+
+## 🧩 Design Principles
+
+1. **Event-driven** — Components communicate via `EventBus`, not direct coupling
+2. **Local-first** — Models run on your machine; cloud APIs are optional fallbacks
+3. **Security-first** — Permissions, sandboxing, and audit logging at every layer
+4. **Extensible** — Plugins, helpers, and extension hooks for any customization
+5. **Hybrid execution** — Fast path for simple commands, full agent loop for complex work
+6. **Fail-safe** — Errors are caught, logged, and recovered; never silent failures
