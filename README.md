@@ -194,7 +194,6 @@ All operations are confined to `workspace/task_[id]/` directories, preventing ag
 ```bash
 # 1. Clone the repository
 git clone https://github.com/AjayRajan05/VoiceOS.git
-cd VoiceOS/project
 
 # 2. Create and activate virtual environment
 python -m venv .venv
