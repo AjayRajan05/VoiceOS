@@ -411,8 +411,10 @@ class HelperBridgeManager:
         # Unregister VoiceOS tool
         try:
             self.tool_registry.unregister_tool(bridge.voiceos_tool_name)
-        except:
-            pass  # Tool might not be registered
+        except KeyError as e:
+            logger.debug(f"Tool {bridge.voiceos_tool_name} not registered: {e}")
+        except Exception as e:
+            logger.warning(f"Error unregistering tool {bridge.voiceos_tool_name}: {e}")
         
         # Remove bridge
         del self.bridges[bridge_id]

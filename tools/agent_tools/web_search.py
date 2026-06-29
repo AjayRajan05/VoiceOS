@@ -5,10 +5,17 @@ Provides web search capabilities with result filtering
 
 import asyncio
 import logging
+import warnings
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 
-from duckduckgo_search import DDGS
+with warnings.catch_warnings():
+    warnings.filterwarnings(
+        'ignore',
+        message=r'This package \(`duckduckgo_search`\) has been renamed to `ddgs`! Use `pip install ddgs` instead\.',
+        category=RuntimeWarning,
+    )
+    from duckduckgo_search import DDGS
 import requests
 from bs4 import BeautifulSoup
 import time
@@ -25,11 +32,21 @@ class SearchResult:
 
 class WebSearch:
     def __init__(self):
-        self.ddgs = DDGS()
+        self.ddgs = self._create_ddgs_instance()
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'VoiceOS-Agent/1.0 (Research Mode)'
         })
+
+    def _create_ddgs_instance(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', RuntimeWarning)
+            original_warn = warnings.warn
+            try:
+                warnings.warn = lambda *args, **kwargs: None
+                return DDGS()
+            finally:
+                warnings.warn = original_warn
     
     async def search(self, query: str, max_results: int = 10, 
                    region: str = "wt-wt", safesearch: str = "moderate") -> List[SearchResult]:

@@ -5,7 +5,9 @@ Provides seamless switching between voice and CLI interaction modes
 
 import asyncio
 import logging
+import queue
 import threading
+from asyncio import Future
 from typing import Dict, Any, Optional, Callable, List
 from dataclasses import dataclass
 from enum import Enum
@@ -17,7 +19,7 @@ from core.event import Event
 from core.orchestrator import Orchestrator
 from core.cli.console import VoiceConsole
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 class InteractionMode(Enum):
     VOICE = "voice"
@@ -36,26 +38,28 @@ class InteractionConfig:
 
 class VoiceCLIIntegration:
     def __init__(self, event_bus: EventBus, orchestrator: Orchestrator, 
-                 config: InteractionConfig = None):
-        self.event_bus = event_bus
-        self.orchestrator = orchestrator
-        self.config = config or InteractionConfig()
+                 config: InteractionConfig = None) -> None:
+        self.event_bus: EventBus = event_bus
+        self.orchestrator: Orchestrator = orchestrator
+        self.config: InteractionConfig = config or InteractionConfig()
         
         # Interaction state
-        self.current_mode = self.config.default_mode
+        self.current_mode: InteractionMode = self.config.default_mode
         self.voice_active = False
         self.cli_active = False
-        self.current_input = ""
+        self.current_input: str = ""
         
         # Control flags
         self.running = False
         self.interrupt_requested = False
+        self._input_queue: queue.Queue[str] = queue.Queue()
+        self._input_thread: Optional[threading.Thread] = None
         
         # Callbacks
         self.mode_change_callbacks: List[Callable] = []
         
         # Statistics
-        self.stats = {
+        self.stats: Dict[str, int] = {
             "voice_interactions": 0,
             "cli_interactions": 0,
             "interrupts": 0,
@@ -63,7 +67,7 @@ class VoiceCLIIntegration:
             "total_interactions": 0
         }
     
-    async def start(self):
+    async def start(self) -> None:
         """
         Start the unified interaction system
         """
@@ -76,13 +80,13 @@ class VoiceCLIIntegration:
         # Start interaction loop
         await self._interaction_loop()
     
-    def _setup_event_handlers(self):
+    def _setup_event_handlers(self) -> None:
         """
         Setup event bus subscriptions
         """
         self.event_bus.subscribe(Events.INTERRUPT_REQUESTED, self._handle_interrupt)
     
-    async def _interaction_loop(self):
+    async def _interaction_loop(self) -> None:
         """
         Main interaction loop handling both voice and CLI
         """
@@ -97,12 +101,16 @@ class VoiceCLIIntegration:
                 
                 await asyncio.sleep(0.1)  # Prevent busy waiting
                 
+        except asyncio.CancelledError:
+            logger.info("Interaction loop cancelled")
+        except (ConnectionError, TimeoutError) as e:
+            logger.warning(f"Connection error in interaction loop: {e}")
         except Exception as e:
-            logger.error(f"Interaction loop error: {e}")
+            logger.error(f"Unexpected error in interaction loop: {e}")
         finally:
             self.running = False
     
-    async def _voice_interaction_loop(self):
+    async def _voice_interaction_loop(self) -> None:
         """
         Voice-only interaction loop
         """
@@ -115,7 +123,7 @@ class VoiceCLIIntegration:
         # The actual voice processing is handled by the STT system
         await asyncio.sleep(0.1)
     
-    async def _cli_interaction_loop(self):
+    async def _cli_interaction_loop(self) -> None:
         """
         CLI-only interaction loop
         """
@@ -125,14 +133,11 @@ class VoiceCLIIntegration:
             self._notify_mode_change(InteractionMode.CLI)
         
         try:
-            # Get CLI input
-            user_input = VoiceConsole.prompt().strip()
-            
+            user_input = await self._get_cli_input_nonblocking()
             if user_input:
                 await self._process_cli_input(user_input)
                 self.stats["cli_interactions"] += 1
                 self.stats["total_interactions"] += 1
-            
         except EOFError:
             logger.info("CLI input ended")
             self.running = False
@@ -140,7 +145,7 @@ class VoiceCLIIntegration:
             logger.info("CLI interrupt received")
             await self._handle_keyboard_interrupt()
     
-    async def _hybrid_interaction_loop(self):
+    async def _hybrid_interaction_loop(self) -> None:
         """
         Hybrid interaction loop supporting both voice and CLI
         """
@@ -153,15 +158,17 @@ class VoiceCLIIntegration:
         # In hybrid mode, we check for CLI input while also listening for voice
         try:
             # Non-blocking CLI input check
-            user_input = await self._get_cli_input_nonblocking()
+            user_input: str | None = await self._get_cli_input_nonblocking()
             
             if user_input:
                 await self._process_cli_input(user_input)
                 self.stats["cli_interactions"] += 1
                 self.stats["total_interactions"] += 1
             
+        except (ValueError, KeyError) as e:
+            logger.debug(f"Invalid CLI input: {e}")
         except Exception as e:
-            logger.debug(f"CLI input check failed: {e}")
+            logger.debug(f"CLI input processing error: {e}")
         
         # Voice input is handled via events
         await asyncio.sleep(0.1)
@@ -170,26 +177,37 @@ class VoiceCLIIntegration:
         """
         Get CLI input without blocking
         """
+        self._ensure_input_thread()
         try:
-            # This is a simplified implementation
-            # In a real implementation, you'd use a non-blocking input library
-            loop = asyncio.get_event_loop()
-            
-            # Run input in a thread to avoid blocking
-            future = loop.run_in_executor(None, VoiceConsole.prompt, self.config.cli_prompt or None)
-            
-            # Wait with timeout
-            try:
-                result = await asyncio.wait_for(future, timeout=0.1)
-                return result.strip() if result else None
-            except asyncio.TimeoutError:
-                future.cancel()
+            user_input = self._input_queue.get_nowait()
+            if user_input is None:
+                self.running = False
                 return None
-                
-        except Exception:
+            return user_input.strip() if user_input else None
+        except queue.Empty:
             return None
+
+    def _ensure_input_thread(self) -> None:
+        if self._input_thread and self._input_thread.is_alive():
+            return
+        self._input_thread = threading.Thread(target=self._cli_input_thread, daemon=True)
+        self._input_thread.start()
+
+    def _cli_input_thread(self) -> None:
+        while self.running:
+            try:
+                user_input = VoiceConsole.prompt(self.config.cli_prompt or None)
+                self._input_queue.put(user_input)
+                if user_input is None:
+                    break
+            except EOFError:
+                self._input_queue.put(None)
+                break
+            except Exception as e:
+                logger.error(f"CLI input thread error: {e}")
+                break
     
-    async def _process_cli_input(self, user_input: str):
+    async def _process_cli_input(self, user_input: str) -> None | str:
         """
         Process CLI input through the orchestrator
         """
@@ -226,16 +244,20 @@ class VoiceCLIIntegration:
                 {"text": response_text, "source": "cli"},
                 "voice_cli_integration"
             ))
+            return response_text
+        except (ValueError, KeyError, TypeError) as e:
+            logger.error(f"Invalid CLI input structure: {e}")
+            VoiceConsole.error(f"Input error: {e}")
+            return ""
+        except asyncio.TimeoutError as e:
+            logger.warning(f"CLI processing timeout: {e}")
+            VoiceConsole.error("Processing timeout")
+            return ""
         except Exception as e:
-            logger.error(f"CLI processing failed: {e}")
-            VoiceConsole.error(str(e))
+            logger.error(f"Unexpected error in CLI processing: {e}")
+            return ""
     
-    def _format_result(self, result) -> str:
-        if hasattr(result, "result"):
-            return str(result.result)
-        return str(result)
-    
-    async def _handle_voice_input(self, event: Event):
+    async def _handle_voice_input(self, event: Event) -> None:
         """Track voice stats only; orchestrator handles SPEECH_TRANSCRIBED."""
         user_input = event.payload.get("text", "")
         if not user_input.strip():
@@ -245,7 +267,7 @@ class VoiceCLIIntegration:
         self.stats["voice_interactions"] += 1
         self.stats["total_interactions"] += 1
     
-    async def _handle_interrupt(self, event: Event):
+    async def _handle_interrupt(self, event: Event) -> None:
         """
         Handle interrupt requests
         """
@@ -259,7 +281,7 @@ class VoiceCLIIntegration:
         if self.orchestrator.current_execution:
             await self.orchestrator._handle_interrupt(event)
     
-    async def _handle_keyboard_interrupt(self):
+    async def _handle_keyboard_interrupt(self) -> None:
         """
         Handle keyboard interrupt (Ctrl+C)
         """
@@ -276,15 +298,15 @@ class VoiceCLIIntegration:
                 "voice_cli_integration"
             ))
     
-    async def switch_mode(self, new_mode: InteractionMode):
+    async def switch_mode(self, new_mode: InteractionMode) -> None:
         """
         Switch interaction mode
         """
         if new_mode == self.current_mode:
             return
         
-        old_mode = self.current_mode
-        self.current_mode = new_mode
+        old_mode: InteractionMode = self.current_mode
+        self.current_mode: InteractionMode = new_mode
         self.stats["mode_switches"] += 1
         
         logger.info(f"Switched from {old_mode.value} to {new_mode.value} mode")
@@ -299,19 +321,21 @@ class VoiceCLIIntegration:
             self.voice_active = True
             self.cli_active = True
     
-    def _notify_mode_change(self, new_mode: InteractionMode):
+    def _notify_mode_change(self, new_mode: InteractionMode) -> None:
         """
         Notify callbacks of mode change
         """
         for callback in self.mode_change_callbacks:
             try:
                 callback(self.current_mode, new_mode)
+            except TypeError as e:
+                logger.error(f"Invalid callback signature: {e}")
             except Exception as e:
-                logger.error(f"Mode change callback failed: {e}")
+                logger.warning(f"Mode change callback error: {e}")
     
-    def _show_help(self):
+    def _show_help(self) -> None:
         VoiceConsole.section("VoiceOS CLI Help")
-        help_lines = [
+        help_lines: List[str] = [
             f"Mode: {self.current_mode.value}",
             "",
             "Commands:",
@@ -338,10 +362,10 @@ class VoiceCLIIntegration:
             else:
                 print(line)
     
-    async def _show_status(self):
+    async def _show_status(self) -> None:
         try:
-            health = await self.orchestrator.health_check()
-            metrics = self.orchestrator.get_metrics()
+            health: Dict[str, Any] = await self.orchestrator.health_check()
+            metrics: Dict[str, Any] = self.orchestrator.get_metrics()
             VoiceConsole.section("VoiceOS Status")
             VoiceConsole.info(f"Mode: {self.current_mode.value}")
             VoiceConsole.info(f"Health: {health['status']}")
@@ -350,10 +374,19 @@ class VoiceCLIIntegration:
                 f"Interactions — total: {self.stats['total_interactions']} | "
                 f"voice: {self.stats['voice_interactions']} | cli: {self.stats['cli_interactions']}"
             )
+        except (KeyError, AttributeError) as e:
+            VoiceConsole.error(f"Status data error: {e}")
         except Exception as e:
-            VoiceConsole.error(f"Status error: {e}")
+            VoiceConsole.error(f"Status display error: {e}")
     
-    def add_mode_change_callback(self, callback: Callable):
+    def _format_result(self, result: Any) -> str:
+        if hasattr(result, "result"):
+            return str(result.result)
+        if hasattr(result, "final_result"):
+            return str(result.final_result)
+        return str(result)
+
+    def add_mode_change_callback(self, callback: Callable) -> None:
         """
         Add callback for mode changes
         """
@@ -371,11 +404,11 @@ class VoiceCLIIntegration:
             "running": self.running
         }
     
-    def reset_statistics(self):
+    def reset_statistics(self) -> None:
         """
         Reset interaction statistics
         """
-        self.stats = {
+        self.stats: Dict[str, int] = {
             "voice_interactions": 0,
             "cli_interactions": 0,
             "interrupts": 0,
@@ -383,7 +416,7 @@ class VoiceCLIIntegration:
             "total_interactions": 0
         }
     
-    async def stop(self):
+    async def stop(self) -> None:
         """
         Stop the interaction system
         """
@@ -393,5 +426,5 @@ class VoiceCLIIntegration:
         logger.info("Voice+CLI Integration stopped")
 
 
-def get_voice_cli(event_bus, orchestrator, config=None):
+def get_voice_cli(event_bus, orchestrator, config=None) -> VoiceCLIIntegration:
     return VoiceCLIIntegration(event_bus, orchestrator, config)

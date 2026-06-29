@@ -9,8 +9,15 @@ import asyncio
 import logging
 import argparse
 import os
+import warnings
 
-from core.events.event_bus import EventBus
+warnings.filterwarnings(
+    'ignore',
+    message=r'This package \(`duckduckgo_search`\) has been renamed to `ddgs`! Use `pip install ddgs` instead\.',
+    category=RuntimeWarning,
+)
+
+import core.events.event_bus
 from core.event import Event
 from core.events.events import Events
 from core.logger import logger
@@ -52,8 +59,9 @@ async def main():
     VoiceConsole.banner()
 
     voice_pipeline = None
+    voice_cli = None
     try:
-        bus = EventBus()
+        bus = core.events.event_bus.EventBus()
         orchestrator_config = OrchestratorConfig(
             enable_interrupts=True,
             max_execution_time=300.0,
@@ -174,10 +182,14 @@ async def main():
 
     except KeyboardInterrupt:
         logger.info("Interrupt received, shutting down...")
+        if voice_cli:
+            await voice_cli.stop()
     except Exception as e:
         logger.error(f"System error: {e}")
         raise
     finally:
+        if voice_cli:
+            await voice_cli.stop()
         if voice_pipeline:
             await voice_pipeline.stop()
         logger.info("VoiceOS shutdown complete.")

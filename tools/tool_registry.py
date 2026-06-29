@@ -147,6 +147,10 @@ class ToolRegistry:
         # Check if it has execute method
         if not hasattr(cls, 'execute'):
             return False
+
+        # Only classes that provide TOOL_METADATA are valid tools
+        if not hasattr(cls, 'TOOL_METADATA'):
+            return False
         
         # Check if it's not from built-in modules
         if cls.__module__ in ['builtins']:
@@ -156,13 +160,31 @@ class ToolRegistry:
     
     def register_tool(self, tool_class: Type, file_path: str = None) -> bool:
         """
-        Register a tool class
+        Register a tool class with validation
         """
+        # Input validation
+        if tool_class is None:
+            logger.error("tool_class cannot be None")
+            return False
+        
+        if not isinstance(tool_class, type):
+            logger.error(f"tool_class must be a class type, got {type(tool_class)}")
+            return False
+        
         try:
             # Extract metadata
             metadata = self._extract_tool_metadata(tool_class)
             if not metadata:
                 logger.warning(f"No metadata found for tool class: {tool_class.__name__}")
+                return False
+            
+            # Validate tool name (prevent injection)
+            if not metadata.name or not isinstance(metadata.name, str):
+                logger.error(f"Invalid tool name in metadata: {metadata.name}")
+                return False
+            
+            if '/' in metadata.name or '\\' in metadata.name or '..' in metadata.name:
+                logger.error(f"Tool name contains invalid characters: {metadata.name}")
                 return False
             
             # Create instance

@@ -11,6 +11,7 @@ class InterruptController:
         self.tts_controller = tts_controller
         self.vad = SpeechActivityDetector()
         self._consecutive_speech = 0
+        self._interrupt_published = False
 
         event_bus.subscribe(Events.MIC_AUDIO, self.detect_user_speech)
 
@@ -25,11 +26,14 @@ class InterruptController:
             self._consecutive_speech += 1
             self.speech_state.set_user_speaking(True)
             if self.speech_state.is_assistant_speaking() and self._consecutive_speech >= 3:
-                if self.tts_controller:
-                    self.tts_controller.stop()
-                await self.bus.publish(
-                    Event(Events.INTERRUPT_REQUESTED, {"reason": "user barge-in"}, "interrupt_controller")
-                )
+                if not self._interrupt_published:
+                    self._interrupt_published = True
+                    if self.tts_controller:
+                        self.tts_controller.stop()
+                    await self.bus.publish(
+                        Event(Events.INTERRUPT_REQUESTED, {"reason": "user barge-in"}, "interrupt_controller")
+                    )
         else:
             self._consecutive_speech = 0
+            self._interrupt_published = False
             self.speech_state.set_user_speaking(False)

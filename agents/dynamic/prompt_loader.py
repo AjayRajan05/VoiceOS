@@ -427,7 +427,7 @@ class PromptLoader:
             logger.error(f"Failed to export templates: {e}")
             return False
     
-    def import_templates(self, import_path: str) -> bool:
+    async def import_templates(self, import_path: str) -> bool:
         """
         Import templates from a JSON file
         """

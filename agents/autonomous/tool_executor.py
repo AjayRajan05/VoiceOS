@@ -19,15 +19,15 @@ from agents.autonomous.tool_generator import GeneratedTool
 from agents.core.safety import SafetyModule
 from permissions.permission_engine import PermissionEngine
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 class AutonomousToolExecutor:
     def __init__(self, state_manager: AutonomousStateManager,
                  safety_module: SafetyModule,
-                 permission_engine: PermissionEngine):
-        self.state_manager = state_manager
-        self.safety_module = safety_module
-        self.permission_engine = permission_engine
+                 permission_engine: PermissionEngine) -> None:
+        self.state_manager: AutonomousStateManager = state_manager
+        self.safety_module: SafetyModule = safety_module
+        self.permission_engine: PermissionEngine = permission_engine
         
         # Execution cache
         self.execution_cache: Dict[str, Any] = {}
@@ -37,7 +37,7 @@ class AutonomousToolExecutor:
         self.max_memory_usage = 100 * 1024 * 1024  # 100MB
         
         # Execution statistics
-        self.stats = {
+        self.stats: Dict[str, int] = {
             "total_executions": 0,
             "successful_executions": 0,
             "failed_executions": 0,
@@ -49,37 +49,37 @@ class AutonomousToolExecutor:
         """
         Execute a generated tool with safety validation
         """
-        execution_start = time.time()
+        execution_start: float = time.time()
         action_id = None
         
         try:
             # Log execution start
-            action_id = self.state_manager.add_action(
+            action_id: str = self.state_manager.add_action(
                 task_id, ActionType.EXECUTE_TOOL,
                 f"Executing tool {tool.name}", parameters
             )
             
             # Pre-execution safety check
-            safety_result = await self._pre_execution_safety_check(tool, parameters, task_id)
+            safety_result: Dict[str, Any] = await self._pre_execution_safety_check(tool, parameters, task_id)
             if not safety_result["allowed"]:
-                error = f"Execution blocked: {safety_result['reason']}"
+                error: str = f"Execution blocked: {safety_result['reason']}"
                 self.state_manager.complete_action(task_id, action_id, error=error)
                 self.stats["blocked_executions"] += 1
                 return {"status": "blocked", "error": error}
             
             # Permission check
-            permission_result = await self._check_execution_permission(tool, parameters, task_id)
+            permission_result: Dict[str, Any] = await self._check_execution_permission(tool, parameters, task_id)
             if not permission_result["granted"]:
-                error = f"Permission denied: {permission_result['reason']}"
+                error: str = f"Permission denied: {permission_result['reason']}"
                 self.state_manager.complete_action(task_id, action_id, error=error)
                 self.stats["blocked_executions"] += 1
                 return {"status": "permission_denied", "error": error}
             
             # Execute tool in sandbox
-            result = await self._execute_in_sandbox(tool, parameters, task_id)
+            result: Dict[str, Any] = await self._execute_in_sandbox(tool, parameters, task_id)
             
             # Post-execution validation
-            validated_result = await self._post_execution_validation(result, tool, task_id)
+            validated_result: Dict[str, Any] = await self._post_execution_validation(result, tool, task_id)
             
             # Update statistics
             self.stats["total_executions"] += 1
@@ -103,7 +103,7 @@ class AutonomousToolExecutor:
             return validated_result
             
         except Exception as e:
-            error_msg = f"Tool execution failed: {str(e)}"
+            error_msg: str = f"Tool execution failed: {str(e)}"
             logger.error(error_msg)
             
             if action_id:
@@ -127,7 +127,7 @@ class AutonomousToolExecutor:
                 }
             
             # Validate parameters
-            param_validation = self._validate_parameters(parameters, tool)
+            param_validation: Dict[str, Any] = self._validate_parameters(parameters, tool)
             if not param_validation["valid"]:
                 return {
                     "allowed": False,
@@ -135,8 +135,8 @@ class AutonomousToolExecutor:
                 }
             
             # Check workspace boundaries
-            workspace_path = self.state_manager.get_task_state(task_id).workspace_path
-            boundary_check = self._check_workspace_boundaries(parameters, workspace_path)
+            workspace_path: str = self.state_manager.get_task_state(task_id).workspace_path
+            boundary_check: Dict[str, Any] = self._check_workspace_boundaries(parameters, workspace_path)
             if not boundary_check["within_bounds"]:
                 return {
                     "allowed": False,
@@ -160,16 +160,16 @@ class AutonomousToolExecutor:
         """
         try:
             # Determine permission level based on tool safety
-            permission_level = "low" if tool.safety_level == "low" else "medium"
+            permission_level: str = "low" if tool.safety_level == "low" else "medium"
             
             # Check if permission is required
-            permission_required = await self.permission_engine.is_permission_required(
+            permission_required: bool = await self.permission_engine.is_permission_required(
                 f"execute_tool_{tool.name}", 
                 [tool.safety_level]
             )
             
             if permission_required:
-                granted = await self.permission_engine.prompt_for_approval(
+                granted: bool = await self.permission_engine.prompt_for_approval(
                     f"execute_tool_{tool.name}",
                     [tool.name],
                     f"Execute autonomous tool {tool.name} with {parameters}",
@@ -195,18 +195,37 @@ class AutonomousToolExecutor:
                                  parameters: Dict[str, Any],
                                  task_id: str) -> Dict[str, Any]:
         """
-        Execute tool in isolated sandbox
+        Execute tool in isolated sandbox with validation
         """
+        # Input validation
+        if tool is None:
+            return {
+                "status": "error",
+                "error": "Tool cannot be None"
+            }
+        
+        if not isinstance(parameters, dict):
+            return {
+                "status": "error",
+                "error": f"Parameters must be dict, got {type(parameters)}"
+            }
+        
+        if not isinstance(task_id, str):
+            return {
+                "status": "error",
+                "error": f"task_id must be str, got {type(task_id)}"
+            }
+        
         try:
             # Create temporary execution environment
             workspace_path = Path(tool.workspace_path)
-            exec_dir = workspace_path / "tools"
+            exec_dir: Path = workspace_path / "tools"
             
             # Prepare execution context
-            exec_context = self._prepare_execution_context(tool, parameters, task_id)
+            exec_context: Dict[str, Any] = self._prepare_execution_context(tool, parameters, task_id)
             
             # Execute with timeout
-            result = await asyncio.wait_for(
+            result: Dict[str, Any] = await asyncio.wait_for(
                 self._run_tool_code(tool.code, exec_context, exec_dir),
                 timeout=self.max_execution_time
             )
@@ -341,7 +360,7 @@ class AutonomousToolExecutor:
             }
             
             # Validate result size
-            result_size = len(str(result))
+            result_size: int = len(str(result))
             if result_size > 1024 * 1024:  # 1MB limit
                 result["status"] = "warning"
                 result["warning"] = "Result size exceeds limit, truncated"
@@ -365,7 +384,7 @@ class AutonomousToolExecutor:
         """
         try:
             # Check for dangerous parameter values
-            dangerous_values = [
+            dangerous_values: List[str] = [
                 "..", "/", "\\", "etc", "proc", "sys", "dev", "root"
             ]
             
@@ -392,7 +411,7 @@ class AutonomousToolExecutor:
         Ensure parameters don't violate workspace boundaries
         """
         try:
-            workspace = Path(workspace_path).resolve()
+            workspace: Path = Path(workspace_path).resolve()
             
             for key, value in parameters.items():
                 if isinstance(value, str) and ("/" in value or "\\" in value):
@@ -419,7 +438,7 @@ class AutonomousToolExecutor:
                 "violation": f"Boundary check error: {str(e)}"
             }
     
-    def _safe_print(self, *args, **kwargs):
+    def _safe_print(self, *args, **kwargs) -> None:
         """
         Safe print function for sandbox
         """
@@ -433,7 +452,7 @@ class AutonomousToolExecutor:
         results = []
         
         for tool, parameters in tools_with_params:
-            result = await self.execute_tool(task_id, tool, parameters)
+            result: Dict[str, Any] = await self.execute_tool(task_id, tool, parameters)
             results.append(result)
             
             # Stop on first failure
@@ -456,18 +475,18 @@ class AutonomousToolExecutor:
             "max_memory_usage": self.max_memory_usage
         }
     
-    def reset_statistics(self):
+    def reset_statistics(self) -> None:
         """
         Reset execution statistics
         """
-        self.stats = {
+        self.stats: Dict[str, int] = {
             "total_executions": 0,
             "successful_executions": 0,
             "failed_executions": 0,
             "blocked_executions": 0
         }
     
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """
         Cleanup resources
         """

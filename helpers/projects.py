@@ -125,8 +125,8 @@ def clone_git_project(name: str, git_url: str, git_token: str, data: BasicProjec
     except Exception as e:
         try:
             files.delete_dir(abs_path)
-        except Exception:
-            pass
+        except Exception as cleanup_error:
+            logger.warning("Failed to cleanup directory %s: %s", abs_path, cleanup_error)
         raise e
 
 

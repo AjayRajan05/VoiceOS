@@ -64,7 +64,11 @@ class TaskPlan(BaseModel):
     done: list[datetime] = Field(default_factory=list)
 
     @classmethod
-    def create(cls, todo: list[datetime] = list(), in_progress: datetime | None = None, done: list[datetime] = list()):
+    def create(cls, todo: list[datetime] = None, in_progress: datetime | None = None, done: list[datetime] = None):
+        if todo is None:
+            todo = []
+        if done is None:
+            done = []
         if todo:
             for idx, dt in enumerate(todo):
                 if dt.tzinfo is None:

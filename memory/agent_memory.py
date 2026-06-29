@@ -138,6 +138,9 @@ class AgentMemory:
             self.stats["total_memories"] += 1
             self.stats["memories_by_type"][memory_type.value] += 1
             
+            # Enforce memory limits
+            self._enforce_memory_limits()
+            
             # Persist if enabled
             if self.config.persistence_enabled:
                 self._save_memories_async()
@@ -397,6 +400,28 @@ class AgentMemory:
                 oldest_id = self.priority_queue.popleft()
                 if oldest_id in self.memories:
                     self._remove_memory(oldest_id)
+    
+    def _enforce_memory_limits(self):
+        """
+        Enforce maximum memory limits across all collections
+        """
+        # Check overall memory count
+        if len(self.memories) >= self.config.max_entries:
+            # Remove lowest priority memories
+            to_remove = len(self.memories) - int(self.config.max_entries * 0.8)
+            removed = 0
+            for memory_id in sorted(
+                self.memories.keys(),
+                key=lambda mid: (
+                    self.memories[mid].priority.value if mid in self.memories else 0,
+                    self.memories[mid].access_count if mid in self.memories else 0
+                )
+            ):
+                if removed >= to_remove:
+                    break
+                if memory_id in self.memories:
+                    self._remove_memory(memory_id)
+                    removed += 1
     
     def _remove_memory(self, memory_id: str):
         """

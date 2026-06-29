@@ -429,8 +429,14 @@ print(f"RESULT:{{result}}")
                 if result_line:
                     result_str = result_line[0][6:]  # Remove "RESULT:" prefix
                     try:
-                        result = eval(result_str)  # Parse the result
-                    except:
+                        # Use ast.literal_eval for safer parsing
+                        import ast
+                        result = ast.literal_eval(result_str)
+                    except (ValueError, SyntaxError) as e:
+                        logger.debug(f"Failed to parse result as literal: {e}, using string")
+                        result = result_str
+                    except Exception as e:
+                        logger.warning(f"Unexpected error parsing result: {e}")
                         result = result_str
             else:
                 result = output

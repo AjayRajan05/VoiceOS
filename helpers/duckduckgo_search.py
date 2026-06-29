@@ -12,11 +12,28 @@
 #     result = api.run(query)
 #     return result
 
-from duckduckgo_search import DDGS
+import warnings
+
+try:
+    from ddgs import DDGS
+except ImportError:
+    from duckduckgo_search import DDGS
+
+
+def _create_ddgs_instance():
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', RuntimeWarning)
+        original_warn = warnings.warn
+        try:
+            warnings.warn = lambda *args, **kwargs: None
+            return DDGS()
+        finally:
+            warnings.warn = original_warn
+
 
 def search(query: str, results = 5, region = "wt-wt", time="y") -> list[str]:
 
-    ddgs = DDGS()
+    ddgs = _create_ddgs_instance()
     src = ddgs.text(
         query,
         region=region,  # Specify region 

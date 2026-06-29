@@ -3,6 +3,10 @@ Configuration Manager Module - Centralized configuration management
 Handles environment-specific settings, validation, and agent configuration
 """
 
+from io import TextIOWrapper
+from io import TextIOWrapper
+from io import TextIOWrapper
+from io import TextIOWrapper
 import os
 import json
 import yaml
@@ -13,7 +17,7 @@ from pathlib import Path
 import time
 from enum import Enum
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 class Environment(Enum):
     DEVELOPMENT = "development"
@@ -129,9 +133,9 @@ class VoiceOSConfig:
     execution_mode: str = "local"
 
 class ConfigManager:
-    def __init__(self, config_file: str = None, environment: Environment = None):
-        self.config_file = config_file or "config/voiceos.yaml"
-        self.environment = environment or self._detect_environment()
+    def __init__(self, config_file: str = None, environment: Environment = None) -> None:
+        self.config_file: str = config_file or "config/voiceos.yaml"
+        self.environment: Environment = environment or self._detect_environment()
         self.config = VoiceOSConfig()
         
         # Load configuration
@@ -150,7 +154,7 @@ class ConfigManager:
         """
         Detect current environment from environment variables
         """
-        env_var = os.getenv("VOICEOS_ENV", "").lower()
+        env_var: str = os.getenv("VOICEOS_ENV", "").lower()
         
         if env_var == "production":
             return Environment.PRODUCTION
@@ -161,7 +165,7 @@ class ConfigManager:
         else:
             return Environment.DEVELOPMENT
     
-    def _load_configuration(self):
+    def _load_configuration(self) -> None:
         """
         Load configuration from file
         """
@@ -182,11 +186,17 @@ class ConfigManager:
                 logger.warning(f"Configuration file not found: {self.config_file}")
                 self._create_default_config()
                 
+        except (IOError, OSError) as e:
+            logger.error(f"Failed to read configuration file: {e}")
+            self._create_default_config()
+        except (yaml.YAMLError, json.JSONDecodeError, ValueError) as e:
+            logger.error(f"Invalid configuration format: {e}")
+            self._create_default_config()
         except Exception as e:
-            logger.error(f"Failed to load configuration: {e}")
+            logger.error(f"Unexpected error loading configuration: {e}")
             self._create_default_config()
     
-    def _update_config_from_dict(self, config_data: Dict[str, Any]):
+    def _update_config_from_dict(self, config_data: Dict[str, Any]) -> None:
         """
         Update configuration object from dictionary
         """
@@ -227,13 +237,13 @@ class ConfigManager:
                 self._update_dataclass(self.config.distributed, config_data["distributed"])
             
             # Update paths
-            path_keys = ["models_path", "workspace_path", "memory_path", "logs_path", "config_path"]
+            path_keys: List[str] = ["models_path", "workspace_path", "memory_path", "logs_path", "config_path"]
             for key in path_keys:
                 if key in config_data:
                     setattr(self.config, key, config_data[key])
             
             # Update feature flags
-            feature_keys = [
+            feature_keys: List[str] = [
                 "enable_workspace_isolation", "enable_agent_memory", 
                 "enable_tool_registry", "enable_event_handlers", "enable_safety_checks",
                 "execution_mode",
@@ -242,10 +252,14 @@ class ConfigManager:
                 if key in config_data:
                     setattr(self.config, key, config_data[key])
                     
+        except (AttributeError, TypeError, KeyError) as e:
+            logger.error(f"Invalid configuration structure: {e}")
+        except ValueError as e:
+            logger.error(f"Invalid configuration value: {e}")
         except Exception as e:
-            logger.error(f"Failed to update config from dict: {e}")
+            logger.error(f"Unexpected error updating config: {e}")
     
-    def _update_dataclass(self, dataclass_instance, data: Dict[str, Any]):
+    def _update_dataclass(self, dataclass_instance, data: Dict[str, Any]) -> None:
         """
         Update dataclass instance from dictionary
         """
@@ -253,7 +267,7 @@ class ConfigManager:
             if hasattr(dataclass_instance, key):
                 setattr(dataclass_instance, key, value)
     
-    def _create_default_config(self):
+    def _create_default_config(self) -> None:
         """
         Create default configuration file
         """
@@ -261,7 +275,7 @@ class ConfigManager:
             config_path = Path(self.config_file)
             config_path.parent.mkdir(parents=True, exist_ok=True)
             
-            default_config = asdict(self.config)
+            default_config: Dict[str, Any] = asdict(self.config)
             
             with open(config_path, 'w', encoding='utf-8') as f:
                 if config_path.suffix.lower() in ['.yaml', '.yml']:
@@ -271,16 +285,20 @@ class ConfigManager:
             
             logger.info(f"Created default configuration file: {self.config_file}")
             
+        except (IOError, OSError) as e:
+            logger.error(f"Failed to write configuration file: {e}")
+        except (yaml.YAMLError, json.JSONDecodeError, TypeError) as e:
+            logger.error(f"Failed to serialize configuration: {e}")
         except Exception as e:
-            logger.error(f"Failed to create default config: {e}")
+            logger.error(f"Unexpected error creating default config: {e}")
     
-    def _validate_configuration(self):
+    def _validate_configuration(self) -> None:
         """
         Validate configuration values
         """
         try:
             # Validate paths
-            paths_to_validate = [
+            paths_to_validate: List[str] = [
                 self.config.models_path,
                 self.config.workspace_path,
                 self.config.memory_path,
@@ -311,10 +329,14 @@ class ConfigManager:
             if self.config.security.enable_authentication and not self.config.security.encryption_key:
                 logger.warning("Authentication enabled but no encryption key configured")
             
+        except (IOError, OSError) as e:
+            logger.error(f"Failed to create required directories: {e}")
+        except (AttributeError, TypeError, ValueError) as e:
+            logger.error(f"Invalid configuration attribute: {e}")
         except Exception as e:
-            logger.error(f"Configuration validation failed: {e}")
+            logger.error(f"Unexpected error validating configuration: {e}")
     
-    def _apply_environment_overrides(self):
+    def _apply_environment_overrides(self) -> None:
         """
         Apply environment-specific overrides
         """
@@ -352,7 +374,7 @@ class ConfigManager:
             }
             
             for env_var, (config_path, value_type) in env_overrides.items():
-                env_value = os.getenv(env_var)
+                env_value: str | None = os.getenv(env_var)
                 if env_value:
                     self._set_nested_value(config_path, self._convert_value(env_value, value_type))
             
@@ -361,17 +383,32 @@ class ConfigManager:
         except Exception as e:
             logger.error(f"Failed to apply environment overrides: {e}")
     
-    def _set_nested_value(self, path: str, value: Any):
+    def _set_nested_value(self, path: str, value: Any) -> None:
         """
-        Set nested configuration value
+        Set nested configuration value with depth validation
         """
-        keys = path.split('.')
-        current = self.config
+        if not path or not isinstance(path, str):
+            raise ValueError("path must be a non-empty string")
         
-        for key in keys[:-1]:
-            current = getattr(current, key)
+        keys: List[str] = path.split('.')
         
-        setattr(current, keys[-1], value)
+        if len(keys) > 10:
+            raise ValueError(f"Config path too deep (max 10 levels): {len(keys)}")
+        
+        current: VoiceOSConfig = self.config
+        
+        try:
+            for key in keys[:-1]:
+                if not isinstance(key, str) or not key.isidentifier():
+                    raise ValueError(f"Invalid config key: {key}")
+                current = getattr(current, key)
+            
+            final_key: str = keys[-1]
+            if not isinstance(final_key, str) or not final_key.isidentifier():
+                raise ValueError(f"Invalid config key: {final_key}")
+            setattr(current, final_key, value)
+        except AttributeError as e:
+            raise ValueError(f"Invalid config path {path}: {e}")
     
     def _convert_value(self, value: str, value_type: type) -> Any:
         """
@@ -386,7 +423,7 @@ class ConfigManager:
         else:
             return value
     
-    def _setup_logging(self):
+    def _setup_logging(self) -> None:
         """
         Setup logging based on configuration
         """
@@ -435,9 +472,15 @@ class ConfigManager:
             logging.config.dictConfig(log_config)
             logger.info(f"Logging configured with level: {self.config.logging.level}")
             
+        except (IOError, OSError) as e:
+            logging.basicConfig(level=logging.INFO)
+            logger.error(f"Failed to setup logging - file access error: {e}")
+        except (KeyError, TypeError, ValueError) as e:
+            logging.basicConfig(level=logging.INFO)
+            logger.error(f"Invalid logging configuration: {e}")
         except Exception as e:
             logging.basicConfig(level=logging.INFO)
-            logger.error(f"Failed to setup logging: {e}")
+            logger.error(f"Unexpected error setting up logging: {e}")
     
     def get_config(self) -> VoiceOSConfig:
         """
@@ -482,7 +525,7 @@ class ConfigManager:
         
         return base_config
     
-    def update_config(self, updates: Dict[str, Any], save: bool = True):
+    def update_config(self, updates: Dict[str, Any], save: bool = True) -> None:
         """
         Update configuration with new values
         """
@@ -495,17 +538,23 @@ class ConfigManager:
             
             logger.info("Configuration updated successfully")
             
+        except (AttributeError, TypeError, ValueError, KeyError) as e:
+            logger.error(f"Invalid configuration update - invalid structure or value: {e}")
+            raise
+        except (IOError, OSError) as e:
+            logger.error(f"Failed to save configuration: {e}")
+            raise
         except Exception as e:
-            logger.error(f"Failed to update configuration: {e}")
+            logger.error(f"Unexpected error updating configuration: {e}")
             raise
     
-    def _save_configuration(self):
+    def _save_configuration(self) -> None:
         """
         Save current configuration to file
         """
         try:
             config_path = Path(self.config_file)
-            config_data = asdict(self.config)
+            config_data: Dict[str, Any] = asdict(self.config)
             
             # Convert enum to string
             config_data["environment"] = self.config.environment.value
@@ -521,7 +570,7 @@ class ConfigManager:
         except Exception as e:
             logger.error(f"Failed to save configuration: {e}")
     
-    def reload_configuration(self):
+    def reload_configuration(self) -> None:
         """
         Reload configuration from file
         """
@@ -532,23 +581,23 @@ class ConfigManager:
         self._setup_logging()
         logger.info("Configuration reloaded successfully")
     
-    def export_configuration(self, export_path: str, include_sensitive: bool = False):
+    def export_configuration(self, export_path: str, include_sensitive: bool = False) -> None:
         """
         Export configuration to file
         """
         try:
-            config_data = asdict(self.config)
+            config_data: Dict[str, Any] = asdict(self.config)
             
             # Remove sensitive information if requested
             if not include_sensitive:
-                sensitive_keys = [
+                sensitive_keys: List[str] = [
                     "database.password",
                     "llm.api_key",
                     "security.encryption_key"
                 ]
                 
                 for key in sensitive_keys:
-                    keys = key.split('.')
+                    keys: List[str] = key.split('.')
                     self._remove_nested_key(config_data, keys)
             
             with open(export_path, 'w', encoding='utf-8') as f:
@@ -563,7 +612,7 @@ class ConfigManager:
             logger.error(f"Failed to export configuration: {e}")
             raise
     
-    def _remove_nested_key(self, data: Dict, keys: List[str]):
+    def _remove_nested_key(self, data: Dict, keys: List[str]) -> None:
         """
         Remove nested key from dictionary
         """

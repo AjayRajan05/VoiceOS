@@ -192,7 +192,14 @@ class AutonomousAgentLoop:
                     timestamp=iteration_start,
                     duration=iteration_duration
                 )
+                
+                # Add bounds checking to prevent unbounded growth
                 self.iterations.append(loop_iteration)
+                if len(self.iterations) > self.max_iterations + 100:
+                    logger.warning(f"Iterations history exceeded limit, pruning oldest entries")
+                    # Keep last 2x max_iterations to preserve recent history
+                    keep_count = min(self.max_iterations * 2, len(self.iterations))
+                    self.iterations = self.iterations[-keep_count:]
                 
                 # Update progress
                 self.state_manager.update_progress(task_id, iteration + 1, self.max_iterations)

@@ -18,7 +18,7 @@ from pathlib import Path
 import secrets
 from collections import defaultdict, deque
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 class ThreatLevel(Enum):
     LOW = "low"
@@ -67,9 +67,9 @@ class SecurityConfig:
 class SecurityValidator:
     """Input and output validation and sanitization"""
     
-    def __init__(self):
+    def __init__(self) -> None:
         # Dangerous patterns
-        self.injection_patterns = [
+        self.injection_patterns: List[str] = [
             r'<script[^>]*>.*?</script>',  # Script tags
             r'javascript:',  # JavaScript protocol
             r'on\w+\s*=',  # Event handlers
@@ -94,11 +94,11 @@ class SecurityValidator:
         ]
         
         # Compile regex patterns
-        self.compiled_patterns = [re.compile(pattern, re.IGNORECASE | re.DOTALL) 
-                                for pattern in self.injection_patterns]
+        self.compiled_patterns: List[re.Pattern[str]] = [re.compile(pattern, re.IGNORECASE | re.DOTALL)
+                                                         for pattern in self.injection_patterns]
         
         # Allowed characters for different contexts
-        self.allowed_chars = {
+        self.allowed_chars: Dict[str, str] = {
             'text': r'a-zA-Z0-9\s.,!?;:()\[\]{}"-\'',
             'filename': r'a-zA-Z0-9._-',
             'path': r'a-zA-Z0-9/._-\\',
@@ -135,7 +135,7 @@ class SecurityValidator:
             
             # Check allowed characters
             if context in self.allowed_chars:
-                allowed_pattern = f'^[{self.allowed_chars[context]}]*$'
+                allowed_pattern: str = f'^[{self.allowed_chars[context]}]*$'
                 if not re.match(allowed_pattern, input_data, re.IGNORECASE):
                     result["valid"] = False
                     result["threats"].append("invalid_characters")
@@ -157,27 +157,27 @@ class SecurityValidator:
         Sanitize input data by removing dangerous elements
         """
         try:
-            sanitized = input_data
+            sanitized: str = input_data
             
             # Remove script tags
-            sanitized = re.sub(r'<script[^>]*>.*?</script>', '', sanitized, flags=re.IGNORECASE | re.DOTALL)
+            sanitized: str = re.sub(r'<script[^>]*>.*?</script>', '', sanitized, flags=re.IGNORECASE | re.DOTALL)
             
             # Remove JavaScript protocols
-            sanitized = re.sub(r'javascript:', '', sanitized, flags=re.IGNORECASE)
+            sanitized: str = re.sub(r'javascript:', '', sanitized, flags=re.IGNORECASE)
             
             # Remove event handlers
-            sanitized = re.sub(r'on\w+\s*=', '', sanitized, flags=re.IGNORECASE)
+            sanitized: str = re.sub(r'on\w+\s*=', '', sanitized, flags=re.IGNORECASE)
             
             # Remove dangerous function calls
-            dangerous_functions = ['eval', 'exec', 'system', 'shell_exec', 'passthru']
+            dangerous_functions: List[str] = ['eval', 'exec', 'system', 'shell_exec', 'passthru']
             for func in dangerous_functions:
                 sanitized = re.sub(f'{func}\\s*\\(', '', sanitized, flags=re.IGNORECASE)
             
             # Normalize whitespace
-            sanitized = re.sub(r'\s+', ' ', sanitized)
+            sanitized: str = re.sub(r'\s+', ' ', sanitized)
             
             # Strip leading/trailing whitespace
-            sanitized = sanitized.strip()
+            sanitized: str = sanitized.strip()
             
             return sanitized
             
@@ -192,14 +192,14 @@ class SecurityValidator:
         try:
             if context == "html":
                 # HTML context - escape HTML entities
-                sanitized = (output_data.replace('&', '&amp;')
+                sanitized: str = (output_data.replace('&', '&amp;')
                                         .replace('<', '&lt;')
                                         .replace('>', '&gt;')
                                         .replace('"', '&quot;')
                                         .replace("'", '&#x27;'))
             else:
                 # Text context - just remove dangerous elements
-                sanitized = self.sanitize_input(output_data)
+                sanitized: str = self.sanitize_input(output_data)
             
             return sanitized
             
@@ -220,7 +220,7 @@ class SecurityValidator:
         
         try:
             # Normalize path
-            normalized_path = os.path.normpath(file_path)
+            normalized_path: str = os.path.normpath(file_path)
             
             # Check for path traversal
             if '..' in normalized_path:
@@ -238,8 +238,8 @@ class SecurityValidator:
             
             # Check against base path if provided
             if base_path:
-                full_path = os.path.join(base_path, normalized_path)
-                full_path = os.path.normpath(full_path)
+                full_path: str = os.path.join(base_path, normalized_path)
+                full_path: str = os.path.normpath(full_path)
                 
                 if not full_path.startswith(os.path.normpath(base_path)):
                     result["valid"] = False
@@ -262,16 +262,16 @@ class SecurityValidator:
 class RateLimiter:
     """Rate limiting and DDoS protection"""
     
-    def __init__(self, max_requests_per_minute: int = 60, block_duration: int = 300):
-        self.max_requests_per_minute = max_requests_per_minute
-        self.block_duration = block_duration
+    def __init__(self, max_requests_per_minute: int = 60, block_duration: int = 300) -> None:
+        self.max_requests_per_minute: int = max_requests_per_minute
+        self.block_duration: int = block_duration
         
         # Request tracking
         self.requests: Dict[str, deque] = defaultdict(lambda: deque(maxlen=100))
         self.blocked_ips: Dict[str, float] = {}
         
         # Statistics
-        self.stats = {
+        self.stats: Dict[str, int] = {
             "total_requests": 0,
             "blocked_requests": 0,
             "rate_limited_ips": 0
@@ -281,11 +281,11 @@ class RateLimiter:
         """
         Check if IP address is rate limited
         """
-        current_time = time.time()
+        current_time: float = time.time()
         
         # Check if IP is blocked
         if ip_address in self.blocked_ips:
-            block_expiry = self.blocked_ips[ip_address]
+            block_expiry: float = self.blocked_ips[ip_address]
             if current_time < block_expiry:
                 remaining_time = int(block_expiry - current_time)
                 return {
@@ -301,7 +301,7 @@ class RateLimiter:
         requests = self.requests[ip_address]
         
         # Remove old requests (older than 1 minute)
-        cutoff_time = current_time - 60
+        cutoff_time: float = current_time - 60
         while requests and requests[0] < cutoff_time:
             requests.popleft()
         
@@ -341,19 +341,19 @@ class RateLimiter:
 class AccessController:
     """Access control and authentication"""
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.sessions: Dict[str, Dict[str, Any]] = {}
         self.permissions: Dict[str, Set[str]] = defaultdict(set)
         self.failed_attempts: Dict[str, int] = defaultdict(int)
         
         # Default permissions
-        self.default_permissions = {
+        self.default_permissions: Set[str] = {
             "read",
             "execute_safe_tools"
         }
         
         # Admin permissions
-        self.admin_permissions = {
+        self.admin_permissions: Set[str] = {
             "read",
             "write",
             "execute_all_tools",
@@ -366,7 +366,7 @@ class AccessController:
         """
         Create a new user session
         """
-        session_id = secrets.token_urlsafe(32)
+        session_id: str = secrets.token_urlsafe(32)
         
         session_data = {
             "user_id": user_id,
@@ -391,8 +391,8 @@ class AccessController:
                 "reason": "Invalid session"
             }
         
-        session = self.sessions[session_id]
-        current_time = time.time()
+        session: Dict[str, Any] = self.sessions[session_id]
+        current_time: float = time.time()
         
         # Check session timeout (24 hours)
         if current_time - session["last_activity"] > 86400:
@@ -431,15 +431,29 @@ class AccessController:
         """
         Check if user has specific permission
         """
+        # Input validation
+        if not user_id or not isinstance(user_id, str):
+            raise ValueError("user_id must be a non-empty string")
+        
+        if not permission or not isinstance(permission, str):
+            raise ValueError("permission must be a non-empty string")
+        
+        # Validate format
+        if not user_id.replace('-', '').replace('_', '').isalnum():
+            raise ValueError(f"Invalid user_id format: {user_id}")
+        
+        if not permission.replace('_', '').replace('-', '').isalnum():
+            raise ValueError(f"Invalid permission format: {permission}")
+        
         return permission in self.permissions.get(user_id, set())
     
-    def grant_permission(self, user_id: str, permission: str):
+    def grant_permission(self, user_id: str, permission: str) -> None:
         """
         Grant permission to user
         """
         self.permissions[user_id].add(permission)
     
-    def revoke_permission(self, user_id: str, permission: str):
+    def revoke_permission(self, user_id: str, permission: str) -> None:
         """
         Revoke permission from user
         """
@@ -448,7 +462,7 @@ class AccessController:
 class SecurityMonitor:
     """Security monitoring and threat detection"""
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.security_events: List[SecurityEvent] = []
         self.threat_patterns: Dict[str, Callable] = {}
         self.alert_handlers: List[Callable] = []
@@ -464,7 +478,7 @@ class SecurityMonitor:
         # Initialize threat detection patterns
         self._initialize_threat_patterns()
     
-    def _initialize_threat_patterns(self):
+    def _initialize_threat_patterns(self) -> None:
         """
         Initialize threat detection patterns
         """
@@ -477,7 +491,7 @@ class SecurityMonitor:
     
     def log_security_event(self, event_type: SecurityEventType, threat_level: ThreatLevel,
                          source_ip: str, user_agent: str, description: str,
-                         details: Dict[str, Any] = None, block: bool = False):
+                         details: Dict[str, Any] = None, block: bool = False) -> None:
         """
         Log a security event
         """
@@ -511,7 +525,7 @@ class SecurityMonitor:
                 logger.error(f"Alert handler failed: {e}")
         
         # Log event
-        log_level = logging.WARNING if threat_level in [ThreatLevel.LOW, ThreatLevel.MEDIUM] else logging.ERROR
+        log_level: int = logging.WARNING if threat_level in [ThreatLevel.LOW, ThreatLevel.MEDIUM] else logging.ERROR
         logger.log(log_level, f"Security Event [{threat_level.value.upper()}]: {description}")
     
     def _detect_multiple_failed_attempts(self, ip_address: str, failed_count: int) -> bool:
@@ -534,11 +548,11 @@ class SecurityMonitor:
         """
         Detect suspicious patterns in requests
         """
-        suspicious_ua_patterns = [
+        suspicious_ua_patterns: List[str] = [
             "bot", "crawler", "scanner", "exploit", "hack"
         ]
         
-        user_agent_lower = user_agent.lower()
+        user_agent_lower: str = user_agent.lower()
         return any(pattern in user_agent_lower for pattern in suspicious_ua_patterns)
     
     def _detect_unusual_access_times(self, access_times: List[float]) -> bool:
@@ -550,7 +564,7 @@ class SecurityMonitor:
         
         # Check for access between 2 AM and 4 AM
         for timestamp in access_times[-10:]:  # Last 10 accesses
-            hour = time.localtime(timestamp).tm_hour
+            hour: int = time.localtime(timestamp).tm_hour
             if 2 <= hour <= 4:
                 return True
         
@@ -562,7 +576,7 @@ class SecurityMonitor:
         Analyze potential threats
         """
         threats = []
-        overall_threat_level = ThreatLevel.LOW
+        overall_threat_level: ThreatLevel = ThreatLevel.LOW
         
         # Check various threat patterns
         if self._detect_multiple_failed_attempts(ip_address, failed_attempts):
@@ -591,7 +605,7 @@ class SecurityMonitor:
         """
         Get security recommendation based on threat level
         """
-        recommendations = {
+        recommendations: Dict[ThreatLevel, str] = {
             ThreatLevel.LOW: "Monitor for unusual activity",
             ThreatLevel.MEDIUM: "Increase monitoring and consider rate limiting",
             ThreatLevel.HIGH: "Block temporarily and investigate",
@@ -600,7 +614,7 @@ class SecurityMonitor:
         
         return recommendations.get(threat_level, "Monitor the situation")
     
-    def add_alert_handler(self, handler: Callable):
+    def add_alert_handler(self, handler: Callable) -> None:
         """
         Add security alert handler
         """
@@ -610,8 +624,8 @@ class SecurityMonitor:
         """
         Get comprehensive security report
         """
-        current_time = time.time()
-        recent_events = [
+        current_time: float = time.time()
+        recent_events: List[SecurityEvent] = [
             event for event in self.security_events
             if current_time - event.timestamp < 3600  # Last hour
         ]
@@ -633,8 +647,8 @@ class SecurityMonitor:
 class VoiceOSSecurity:
     """Main security coordinator"""
     
-    def __init__(self, config: SecurityConfig = None):
-        self.config = config or SecurityConfig()
+    def __init__(self, config: SecurityConfig = None) -> None:
+        self.config: SecurityConfig = config or SecurityConfig()
         
         # Initialize components
         self.validator = SecurityValidator()
@@ -647,10 +661,10 @@ class VoiceOSSecurity:
         
         # Initialize encryption key
         if self.config.enable_encryption:
-            self.encryption_key = self.config.encryption_key or self._generate_encryption_key()
+            self.encryption_key: str = self.config.encryption_key or self._generate_encryption_key()
         
         # Statistics
-        self.stats = {
+        self.stats: Dict[str, int] = {
             "total_requests": 0,
             "blocked_requests": 0,
             "validated_inputs": 0,
@@ -687,7 +701,7 @@ class VoiceOSSecurity:
             
             # Check rate limiting
             if self.config.enable_rate_limiting:
-                rate_check = self.rate_limiter.check_rate_limit(ip_address)
+                rate_check: Dict[str, Any] = self.rate_limiter.check_rate_limit(ip_address)
                 if not rate_check["allowed"]:
                     result["rate_limited"] = True
                     result["reason"] = rate_check["reason"]
@@ -696,7 +710,7 @@ class VoiceOSSecurity:
             
             # Check session if provided
             if session_id and self.config.enable_access_control:
-                session_check = self.access_controller.validate_session(session_id, required_permission)
+                session_check: Dict[str, Any] = self.access_controller.validate_session(session_id, required_permission)
                 if not session_check["valid"]:
                     result["reason"] = session_check["reason"]
                     result["threat_level"] = ThreatLevel.MEDIUM
@@ -706,7 +720,7 @@ class VoiceOSSecurity:
             
             # Validate input
             if self.config.enable_input_validation:
-                validation = self.validator.validate_input(request_data)
+                validation: Dict[str, Any] = self.validator.validate_input(request_data)
                 if not validation["valid"]:
                     result["reason"] = f"Input validation failed: {validation['reason']}"
                     result["threat_level"] = ThreatLevel.HIGH
@@ -742,7 +756,7 @@ class VoiceOSSecurity:
         Sanitize response data
         """
         if self.config.enable_output_sanitization:
-            sanitized = self.validator.sanitize_output(response_data, context)
+            sanitized: str = self.validator.sanitize_output(response_data, context)
             self.stats["sanitized_outputs"] += 1
             return sanitized
         
@@ -757,8 +771,8 @@ class VoiceOSSecurity:
         
         try:
             # Simple XOR encryption (in production, use proper encryption)
-            key_bytes = self.encryption_key.encode()
-            data_bytes = data.encode()
+            key_bytes: bytes = self.encryption_key.encode()
+            data_bytes: bytes = data.encode()
             
             encrypted = bytearray()
             for i, byte in enumerate(data_bytes):
@@ -779,8 +793,8 @@ class VoiceOSSecurity:
         
         try:
             # Simple XOR decryption
-            key_bytes = self.encryption_key.encode()
-            encrypted_bytes = bytes.fromhex(encrypted_data)
+            key_bytes: bytes = self.encryption_key.encode()
+            encrypted_bytes: bytes = bytes.fromhex(encrypted_data)
             
             decrypted = bytearray()
             for i, byte in enumerate(encrypted_bytes):
@@ -805,7 +819,7 @@ class VoiceOSSecurity:
             "trusted_ips": len(self.config.trusted_ips)
         }
     
-    def block_ip(self, ip_address: str, duration: int = None):
+    def block_ip(self, ip_address: str, duration: int = None) -> None:
         """
         Block an IP address
         """
@@ -817,14 +831,14 @@ class VoiceOSSecurity:
         
         logger.warning(f"Blocked IP address: {ip_address}")
     
-    def unblock_ip(self, ip_address: str):
+    def unblock_ip(self, ip_address: str) -> None:
         """
         Unblock an IP address
         """
         self.config.blocked_ips.discard(ip_address)
         logger.info(f"Unblocked IP address: {ip_address}")
     
-    def add_trusted_ip(self, ip_address: str):
+    def add_trusted_ip(self, ip_address: str) -> None:
         """
         Add trusted IP address
         """
@@ -840,7 +854,7 @@ class VoiceOSSecurity:
         
         return self.access_controller.create_session(user_id, permissions)
     
-    def add_security_alert_handler(self, handler: Callable):
+    def add_security_alert_handler(self, handler: Callable) -> None:
         """
         Add security alert handler
         """

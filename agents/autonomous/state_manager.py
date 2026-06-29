@@ -4,6 +4,13 @@ Manages autonomous agent execution state, progress tracking, and intermediate re
 """
 
 import asyncio
+from io import TextIOWrapper
+from io import TextIOWrapper
+from io import TextIOWrapper
+from io import TextIOWrapper
+from io import TextIOWrapper
+from io import TextIOWrapper
+from io import TextIOWrapper
 import logging
 import json
 import time
@@ -11,9 +18,10 @@ from typing import Dict, Any, List, Optional, Union
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
+from collections import deque
 import uuid
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 class TaskStatus(Enum):
     PENDING = "pending"
@@ -63,13 +71,13 @@ class TaskState:
     completion_percentage: float = 0.0
 
 class AutonomousStateManager:
-    def __init__(self, workspace_base: str = "workspace"):
-        self.workspace_base = workspace_base
+    def __init__(self, workspace_base: str = "workspace") -> None:
+        self.workspace_base: str = workspace_base
         self.active_tasks: Dict[str, TaskState] = {}
         self.task_history: List[TaskState] = []
         
         # State persistence
-        self.state_file = Path(workspace_base) / "autonomous_state.json"
+        self.state_file: Path = Path(workspace_base) / "autonomous_state.json"
         self.load_state()
     
     def create_task(self, user_request: str, goal: str) -> str:
@@ -79,7 +87,7 @@ class AutonomousStateManager:
         task_id = str(uuid.uuid4())
         
         # Create workspace for this task
-        task_workspace = Path(self.workspace_base) / f"task_{task_id[:8]}"
+        task_workspace: Path = Path(self.workspace_base) / f"task_{task_id[:8]}"
         task_workspace.mkdir(parents=True, exist_ok=True)
         
         # Create subdirectories
@@ -115,7 +123,7 @@ class AutonomousStateManager:
         logger.info(f"Created autonomous task {task_id}: {goal}")
         return task_id
     
-    def update_task_status(self, task_id: str, status: TaskStatus, context: Dict[str, Any] = None):
+    def update_task_status(self, task_id: str, status: TaskStatus, context: Dict[str, Any] = None) -> None:
         """
         Update task status
         """
@@ -123,8 +131,8 @@ class AutonomousStateManager:
             logger.warning(f"Task {task_id} not found")
             return
         
-        task = self.active_tasks[task_id]
-        old_status = task.status
+        task: TaskState = self.active_tasks[task_id]
+        old_status: TaskStatus = task.status
         task.status = status
         task.updated_at = time.time()
         
@@ -154,7 +162,13 @@ class AutonomousStateManager:
             timestamp=time.time()
         )
         
-        task = self.active_tasks[task_id]
+        task: TaskState = self.active_tasks[task_id]
+        
+        # Add bounds checking to prevent unbounded growth
+        if len(task.actions) >= 1000:
+            logger.warning(f"Task {task_id} actions limit reached (1000), removing oldest 500")
+            task.actions = task.actions[-500:]
+        
         task.actions.append(action)
         task.updated_at = time.time()
         
@@ -163,7 +177,7 @@ class AutonomousStateManager:
         
         return action_id
     
-    def complete_action(self, task_id: str, action_id: str, result: Any = None, error: str = None):
+    def complete_action(self, task_id: str, action_id: str, result: Any = None, error: str = None) -> None:
         """
         Complete an action with result or error
         """
@@ -171,7 +185,7 @@ class AutonomousStateManager:
             logger.warning(f"Task {task_id} not found")
             return
         
-        task = self.active_tasks[task_id]
+        task: TaskState = self.active_tasks[task_id]
         
         # Find the action
         for action in task.actions:
@@ -192,7 +206,7 @@ class AutonomousStateManager:
         else:
             logger.info(f"Action {action_id} completed successfully")
     
-    def add_intermediate_result(self, task_id: str, result: Dict[str, Any]):
+    def add_intermediate_result(self, task_id: str, result: Dict[str, Any]) -> None:
         """
         Add intermediate result to task
         """
@@ -200,7 +214,7 @@ class AutonomousStateManager:
             logger.warning(f"Task {task_id} not found")
             return
         
-        task = self.active_tasks[task_id]
+        task: TaskState = self.active_tasks[task_id]
         result_entry = {
             "timestamp": time.time(),
             "step": task.current_step,
@@ -212,7 +226,7 @@ class AutonomousStateManager:
         # Save result to file
         self._save_intermediate_result(task_id, result_entry)
     
-    def add_generated_tool(self, task_id: str, tool_name: str, tool_code: str):
+    def add_generated_tool(self, task_id: str, tool_name: str, tool_code: str) -> None:
         """
         Add a generated tool to the task
         """
@@ -220,20 +234,20 @@ class AutonomousStateManager:
             logger.warning(f"Task {task_id} not found")
             return
         
-        task = self.active_tasks[task_id]
+        task: TaskState = self.active_tasks[task_id]
         task.generated_tools.append(tool_name)
         task.updated_at = time.time()
         
         # Save tool to workspace
-        task_workspace = Path(task.workspace_path) / "tools"
-        tool_file = task_workspace / f"{tool_name}.py"
+        task_workspace: Path = Path(task.workspace_path) / "tools"
+        tool_file: Path = task_workspace / f"{tool_name}.py"
         
         with open(tool_file, 'w', encoding='utf-8') as f:
             f.write(tool_code)
         
         logger.info(f"Generated tool {tool_name} for task {task_id}")
     
-    def update_progress(self, task_id: str, current_step: int, total_steps: int):
+    def update_progress(self, task_id: str, current_step: int, total_steps: int) -> None:
         """
         Update task progress
         """
@@ -241,7 +255,7 @@ class AutonomousStateManager:
             logger.warning(f"Task {task_id} not found")
             return
         
-        task = self.active_tasks[task_id]
+        task: TaskState = self.active_tasks[task_id]
         task.current_step = current_step
         task.total_steps = total_steps
         task.completion_percentage = (current_step / total_steps * 100) if total_steps > 0 else 0
@@ -266,7 +280,7 @@ class AutonomousStateManager:
         """
         return self.active_tasks.copy()
     
-    def complete_task(self, task_id: str, final_result: Dict[str, Any]):
+    def complete_task(self, task_id: str, final_result: Dict[str, Any]) -> None:
         """
         Mark task as completed
         """
@@ -274,7 +288,7 @@ class AutonomousStateManager:
             logger.warning(f"Task {task_id} not found")
             return
         
-        task = self.active_tasks[task_id]
+        task: TaskState = self.active_tasks[task_id]
         task.status = TaskStatus.COMPLETED
         task.updated_at = time.time()
         task.completion_percentage = 100.0
@@ -294,7 +308,7 @@ class AutonomousStateManager:
         
         logger.info(f"Task {task_id} completed successfully")
     
-    def fail_task(self, task_id: str, error: str):
+    def fail_task(self, task_id: str, error: str) -> None:
         """
         Mark task as failed
         """
@@ -302,7 +316,7 @@ class AutonomousStateManager:
             logger.warning(f"Task {task_id} not found")
             return
         
-        task = self.active_tasks[task_id]
+        task: TaskState = self.active_tasks[task_id]
         task.status = TaskStatus.FAILED
         task.updated_at = time.time()
         
@@ -322,7 +336,7 @@ class AutonomousStateManager:
         """
         Get comprehensive task context
         """
-        task = self.get_task_state(task_id)
+        task: TaskState | None = self.get_task_state(task_id)
         if not task:
             return {}
         
@@ -354,7 +368,7 @@ class AutonomousStateManager:
             "context": task.context
         }
     
-    def _log_action(self, task_id: str, action_type: ActionType, description: str, parameters: Dict[str, Any]):
+    def _log_action(self, task_id: str, action_type: ActionType, description: str, parameters: Dict[str, Any]) -> None:
         """
         Log action to console and file
         """
@@ -368,15 +382,15 @@ class AutonomousStateManager:
         
         logger.info(f"Task {task_id}: {description}")
     
-    def _log_action_to_file(self, task_id: str, action: AgentAction):
+    def _log_action_to_file(self, task_id: str, action: AgentAction) -> None:
         """
         Log action to task-specific log file
         """
         if task_id not in self.active_tasks:
             return
         
-        task = self.active_tasks[task_id]
-        log_file = Path(task.workspace_path) / "logs" / "actions.log"
+        task: TaskState = self.active_tasks[task_id]
+        log_file: Path = Path(task.workspace_path) / "logs" / "actions.log"
         
         log_entry = {
             "timestamp": action.timestamp,
@@ -392,15 +406,15 @@ class AutonomousStateManager:
         with open(log_file, 'a', encoding='utf-8') as f:
             f.write(json.dumps(log_entry, default=str) + '\n')
     
-    def _save_intermediate_result(self, task_id: str, result: Dict[str, Any]):
+    def _save_intermediate_result(self, task_id: str, result: Dict[str, Any]) -> None:
         """
         Save intermediate result to file
         """
         if task_id not in self.active_tasks:
             return
         
-        task = self.active_tasks[task_id]
-        results_file = Path(task.workspace_path) / "outputs" / "intermediate_results.json"
+        task: TaskState = self.active_tasks[task_id]
+        results_file: Path = Path(task.workspace_path) / "outputs" / "intermediate_results.json"
         
         # Load existing results
         results = []
@@ -418,16 +432,16 @@ class AutonomousStateManager:
         with open(results_file, 'w', encoding='utf-8') as f:
             json.dump(results, f, indent=2, default=str)
     
-    def _save_task_state(self, task_id: str, task: TaskState):
+    def _save_task_state(self, task_id: str, task: TaskState) -> None:
         """
         Save task state to file
         """
-        state_file = Path(task.workspace_path) / "task_state.json"
+        state_file: Path = Path(task.workspace_path) / "task_state.json"
         
         with open(state_file, 'w', encoding='utf-8') as f:
             json.dump(asdict(task), f, indent=2, default=str)
     
-    def save_state(self):
+    def save_state(self) -> None:
         """
         Save all active states to file
         """
@@ -445,7 +459,7 @@ class AutonomousStateManager:
         except Exception as e:
             logger.error(f"Failed to save state: {e}")
     
-    def load_state(self):
+    def load_state(self) -> None:
         """
         Load state from file
         """
@@ -471,12 +485,12 @@ class AutonomousStateManager:
         except Exception as e:
             logger.error(f"Failed to load state: {e}")
     
-    def cleanup_old_tasks(self, max_age_hours: int = 24):
+    def cleanup_old_tasks(self, max_age_hours: int = 24) -> None:
         """
         Clean up old completed tasks
         """
-        current_time = time.time()
-        cutoff_time = current_time - (max_age_hours * 3600)
+        current_time: float = time.time()
+        cutoff_time: float = current_time - (max_age_hours * 3600)
         
         # Clean up history
         self.task_history = [
@@ -489,7 +503,7 @@ class AutonomousStateManager:
         for task_dir in workspace_base.glob("task_*"):
             if task_dir.is_dir():
                 # Check modification time
-                mod_time = task_dir.stat().st_mtime
+                mod_time: float = task_dir.stat().st_mtime
                 if mod_time < cutoff_time:
                     try:
                         import shutil
@@ -514,10 +528,10 @@ class AutonomousStateManager:
         """
         Calculate average completion time for completed tasks
         """
-        completed_tasks = [t for t in self.task_history if t.status == TaskStatus.COMPLETED]
+        completed_tasks: List[TaskState] = [t for t in self.task_history if t.status == TaskStatus.COMPLETED]
         
         if not completed_tasks:
             return 0.0
         
-        total_time = sum(task.updated_at - task.created_at for task in completed_tasks)
+        total_time: float | int = sum(task.updated_at - task.created_at for task in completed_tasks)
         return total_time / len(completed_tasks)

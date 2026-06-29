@@ -16,7 +16,7 @@ from llm.llm_service import LLMService
 from workspace.workspace_manager import WorkspaceManager
 from core.runtime.session import ExecutionSession
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -42,14 +42,14 @@ class AgentExecution:
 
 
 class AgentRunner:
-    def __init__(self, tool_executor, agent_llm=None, memory_service=None):
-        self.tool_executor = tool_executor
+    def __init__(self, tool_executor, agent_llm=None, memory_service=None) -> None:
+        self.tool_executor: Any = tool_executor
         if isinstance(agent_llm, LLMService):
-            self.agent_llm = agent_llm
+            self.agent_llm: LLMService = agent_llm
         elif agent_llm is not None and hasattr(agent_llm, "llm_service"):
             self.agent_llm = agent_llm.llm_service
         else:
-            self.agent_llm = LLMService.from_env()
+            self.agent_llm: LLMService = LLMService.from_env()
         self.memory_service = memory_service
         self.workspace_manager = WorkspaceManager()
         self.active_executions: Dict[str, AgentExecution] = {}
@@ -63,8 +63,18 @@ class AgentRunner:
         plan: TaskPlan,
         session: Optional[ExecutionSession] = None,
     ) -> AgentExecution:
-        execution_id = f"{agent.workspace_id}_{int(time.time())}"
-        start_time = time.time()
+        # Input validation
+        if agent is None:
+            raise ValueError("Agent cannot be None")
+        if not isinstance(user_input, str):
+            raise TypeError(f"user_input must be str, got {type(user_input)}")
+        if not user_input.strip():
+            raise ValueError("user_input cannot be empty")
+        if plan is None:
+            raise ValueError("plan cannot be None")
+        
+        execution_id: str = f"{agent.workspace_id}_{int(time.time())}"
+        start_time: float = time.time()
         self._session = session
 
         logger.info("Starting agent execution: %s", execution_id)
@@ -131,7 +141,7 @@ class AgentRunner:
     async def _execute_agent_loop(
         self, agent: DynamicAgent, user_input: str, plan: TaskPlan, workspace, execution: AgentExecution
     ) -> Any:
-        available = list(agent.tools.keys())
+        available: List[str] = list(agent.tools.keys())
         context = {
             "user_input": user_input,
             "plan": {
@@ -147,8 +157,8 @@ class AgentRunner:
         if plan.context and plan.context.get("memories"):
             context["memories"] = plan.context["memories"]
 
-        system_prompt = self._build_system_prompt(agent.config, context)
-        messages = [
+        system_prompt: str = self._build_system_prompt(agent.config, context)
+        messages: List[Dict[str, str]] = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_input},
         ]
@@ -159,12 +169,12 @@ class AgentRunner:
         while step_count < agent.config.max_steps:
             self._check_session()
             step_count += 1
-            step_start_time = time.time()
+            step_start_time: float = time.time()
             logger.info("Agent step %s/%s", step_count, agent.config.max_steps)
 
             try:
-                response = await self._get_llm_response(messages, agent.config.role)
-                action = await self._parse_action(response)
+                response: str = await self._get_llm_response(messages, agent.config.role)
+                action: Dict[str, Any] | None = await self._parse_action(response)
                 if not action:
                     logger.warning("No action parsed from LLM response")
                     break
@@ -206,8 +216,8 @@ class AgentRunner:
         return final_result
 
     def _build_system_prompt(self, config: AgentConfig, context: Dict[str, Any]) -> str:
-        base_prompt = config.system_prompt
-        context_info = f"""
+        base_prompt: str = config.system_prompt
+        context_info: str = f"""
 Context:
 - User Input: {context['user_input']}
 - Intent: {context['plan']['intent']}
@@ -247,8 +257,8 @@ Use a registered tool name as action, or set action to the tool name directly.
 
     async def _parse_action(self, response: str) -> Optional[Dict[str, Any]]:
         try:
-            start_idx = response.find("{")
-            end_idx = response.rfind("}") + 1
+            start_idx: int = response.find("{")
+            end_idx: int = response.rfind("}") + 1
             if start_idx != -1 and end_idx > start_idx:
                 return json.loads(response[start_idx:end_idx])
             if "complete" in response.lower():
@@ -261,8 +271,8 @@ Use a registered tool name as action, or set action to the tool name directly.
             return None
 
     def _resolve_tool_name(self, action: Dict[str, Any], available: List[str]) -> Optional[str]:
-        action_type = action.get("action")
-        tool_field = action.get("tool")
+        action_type: Any | None = action.get("action")
+        tool_field: Any | None = action.get("tool")
         if action_type in ("complete", "think", "tool"):
             if tool_field:
                 return tool_field
@@ -274,20 +284,20 @@ Use a registered tool name as action, or set action to the tool name directly.
         return action_type if action_type else None
 
     async def _execute_action(self, action: Dict[str, Any], agent: DynamicAgent, workspace) -> Any:
-        action_type = action.get("action")
+        action_type: Any | None = action.get("action")
         if action_type == "complete":
             return action.get("result", "Task completed")
         if action_type == "think":
             return {"thought": action.get("reasoning", "Thinking")}
 
-        available = list(agent.tools.keys())
-        tool_name = self._resolve_tool_name(action, available)
+        available: List[str] = list(agent.tools.keys())
+        tool_name: str | None = self._resolve_tool_name(action, available)
         if not tool_name or tool_name not in available:
             return {"error": f"Unknown or unavailable tool: {tool_name}"}
 
-        parameters = dict(action.get("parameters") or {})
+        parameters: Dict[Any, Any] = dict(action.get("parameters") or {})
         parameters["workspace_id"] = workspace.workspace_id
-        method_name = action.get("method_name")
+        method_name: Any | None = action.get("method_name")
         if method_name:
             parameters["method_name"] = method_name
         elif tool_name == "web_search" and "query" not in parameters:
@@ -323,7 +333,7 @@ Use a registered tool name as action, or set action to the tool name directly.
 
     async def cancel_execution(self, execution_id: str) -> bool:
         if execution_id in self.active_executions:
-            execution = self.active_executions[execution_id]
+            execution: AgentExecution = self.active_executions[execution_id]
             execution.success = False
             execution.error = "Cancelled by user"
             return True

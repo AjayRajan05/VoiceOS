@@ -5,11 +5,14 @@ Integrates voice pipeline with agent architecture for seamless execution
 
 import asyncio
 import logging
+from asyncio import Task
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
+from threading import Lock
 
 from agents.core.planner import Planner, TaskPlan
 from agents.core.router import Router, RouteResult
+from agents.workflow.workflow_plan import WorkflowNode
 from tools.tool_executor import ToolExecutor
 from permissions.permission_engine import PermissionEngine
 from core.events.event_bus import EventBus
@@ -18,7 +21,7 @@ from core.event import Event
 from core.runtime.session import ExecutionSession
 from core.runtime.execution_wrapper import ExecutionWrapper
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -39,11 +42,11 @@ class Orchestrator:
         config: OrchestratorConfig = None,
         agent_llm=None,
         runtime_context=None,
-    ):
-        self.event_bus = event_bus
-        self.tool_executor = tool_executor
-        self.permission_engine = permission_engine
-        self.config = config or OrchestratorConfig()
+    ) -> None:
+        self.event_bus: EventBus = event_bus
+        self.tool_executor: ToolExecutor = tool_executor
+        self.permission_engine: PermissionEngine = permission_engine
+        self.config: OrchestratorConfig = config or OrchestratorConfig()
         self.agent_llm = agent_llm
         self.runtime_context = runtime_context
 
@@ -58,8 +61,10 @@ class Orchestrator:
             try:
                 from memory.memory_service import MemoryService
                 self.memory = MemoryService()
+            except ImportError as e:
+                logger.debug(f"MemoryService not available: {e}")
             except Exception as e:
-                logger.debug("MemoryService unavailable: %s", e)
+                logger.debug(f"Failed to initialize MemoryService: {e}")
 
         self.planner = Planner()
         self.router = Router(
@@ -79,6 +84,8 @@ class Orchestrator:
         self.current_execution = None
         self._active_session: Optional[ExecutionSession] = None
         self.execution_history = []
+        self._metrics_lock: Lock = Lock()
+        self._execution_history_lock: Lock = Lock()
 
         self.metrics = {
             "total_requests": 0,
@@ -90,11 +97,32 @@ class Orchestrator:
 
         self._setup_event_handlers()
 
-    def _setup_event_handlers(self):
+    def _setup_event_handlers(self) -> None:
         self.event_bus.subscribe(Events.SPEECH_TRANSCRIBED, self._handle_speech_input)
         self.event_bus.subscribe(Events.INTERRUPT_REQUESTED, self._handle_interrupt)
         self.event_bus.subscribe(Events.PERMISSION_GRANTED, self._handle_permission_granted)
         self.event_bus.subscribe(Events.PERMISSION_DENIED, self._handle_permission_denied)
+    
+    def _update_metrics(self, metric_name: str, value: Any) -> None:
+        """Thread-safe metric update"""
+        with self._metrics_lock:
+            self.metrics[metric_name] = value
+    
+    def _increment_metric(self, metric_name: str) -> None:
+        """Thread-safe metric increment"""
+        with self._metrics_lock:
+            if metric_name in self.metrics and isinstance(self.metrics[metric_name], (int, float)):
+                self.metrics[metric_name] += 1
+    
+    def _get_metrics(self) -> Dict[str, Any]:
+        """Thread-safe metrics retrieval"""
+        with self._metrics_lock:
+            return self.metrics.copy()
+    
+    def _append_execution_history(self, execution: Any) -> None:
+        """Thread-safe execution history append"""
+        with self._execution_history_lock:
+            self.execution_history.append(execution)
 
     def _format_response(self, result: Any) -> str:
         if hasattr(result, "result"):
@@ -103,7 +131,7 @@ class Orchestrator:
             return str(result.final_result)
         return str(result)
 
-    async def _handle_speech_input(self, event: Event):
+    async def _handle_speech_input(self, event: Event) -> None:
         user_input = event.payload.get("text", "")
         if not user_input.strip():
             return
@@ -126,8 +154,26 @@ class Orchestrator:
                     "orchestrator",
                 )
             )
+        except asyncio.CancelledError as e:
+            logger.info("User input processing cancelled")
+            await self.event_bus.publish(
+                Event(
+                    Events.EXECUTION_CANCELLED,
+                    {"input": user_input},
+                    "orchestrator",
+                )
+            )
+        except (ValueError, KeyError) as e:
+            logger.error(f"Invalid user input: {e}")
+            await self.event_bus.publish(
+                Event(
+                    Events.ORCHESTRATOR_ERROR,
+                    {"error": str(e), "input": user_input},
+                    "orchestrator",
+                )
+            )
         except Exception as e:
-            logger.error("Failed to process user input: %s", e)
+            logger.error("Unexpected error processing user input: %s", e)
             await self.event_bus.publish(
                 Event(
                     Events.ORCHESTRATOR_ERROR,
@@ -149,7 +195,7 @@ class Orchestrator:
         if self.runtime_context:
             self.runtime_context.set_active_session(session)
 
-        task = asyncio.create_task(self._run_pipeline(user_input, session))
+        task: Task[Any] = asyncio.create_task(self._run_pipeline(user_input, session))
         session.register_task(task)
 
         try:
@@ -163,11 +209,11 @@ class Orchestrator:
                 self.runtime_context.set_active_session(None)
 
     async def _run_pipeline(self, user_input: str, session: ExecutionSession) -> Any:
-        start_time = asyncio.get_event_loop().time()
+        start_time: float = asyncio.get_event_loop().time()
         self.metrics["total_requests"] += 1
 
         try:
-            plan = self.planner.analyze_input(user_input)
+            plan: TaskPlan = self.planner.analyze_input(user_input)
 
             if self.memory:
                 try:
@@ -175,8 +221,10 @@ class Orchestrator:
                     memories = self.memory.retrieve_context(user_input)
                     plan.context = plan.context or {}
                     plan.context["memories"] = memories
+                except (AttributeError, KeyError) as e:
+                    logger.debug(f"Memory attribute error: {e}")
                 except Exception as e:
-                    logger.debug("Memory store/retrieve skipped: %s", e)
+                    logger.debug(f"Memory store/retrieve error: {e}")
 
             if not self.planner.validate_plan(plan):
                 raise ValueError(f"Invalid plan generated: {plan}")
@@ -184,28 +232,34 @@ class Orchestrator:
             logger.info("Task plan: %s - %s", plan.type.value, plan.intent)
             result = await self._execute_plan(plan, user_input, session)
 
-            execution_time = asyncio.get_event_loop().time() - start_time
+            execution_time: float = asyncio.get_event_loop().time() - start_time
             self._update_metrics(plan, execution_time, True)
             return result
         except asyncio.CancelledError:
             self._update_metrics(None, asyncio.get_event_loop().time() - start_time, False)
             raise
-        except Exception:
-            execution_time = asyncio.get_event_loop().time() - start_time
+        except asyncio.TimeoutError as e:
+            execution_time: float = asyncio.get_event_loop().time() - start_time
             self._update_metrics(None, execution_time, False)
+            logger.warning(f"Execution timeout: {e}")
+            raise
+        except Exception as e:
+            execution_time: float = asyncio.get_event_loop().time() - start_time
+            self._update_metrics(None, execution_time, False)
+            logger.error(f"Unexpected error during execution: {e}")
             raise
 
     async def _execute_plan(self, plan: TaskPlan, user_input: str, session: ExecutionSession) -> Any:
-        safety_result = await self._safety_check(plan, user_input)
+        safety_result: Dict[str, Any] = await self._safety_check(plan, user_input)
         if not safety_result["allowed"]:
             raise PermissionError(f"Operation not allowed: {safety_result['reason']}")
 
         if plan.type.value == "workflow":
-            route_result = await self._execute_workflow_task(plan, user_input, session)
+            route_result: RouteResult = await self._execute_workflow_task(plan, user_input, session)
         elif plan.type.value == "autonomous":
             route_result = await self._execute_autonomous_task(plan, user_input)
         else:
-            route_result = await self.router.route_task(plan, user_input, session=session)
+            route_result: RouteResult = await self.router.route_task(plan, user_input, session=session)
 
         if not route_result.success:
             raise RuntimeError(f"Route execution failed: {route_result.error}")
@@ -219,13 +273,13 @@ class Orchestrator:
         self.execution_history.append(self.current_execution)
         return route_result
 
-    async def _execute_workflow_task(self, plan: TaskPlan, user_input: str, session: ExecutionSession):
+    async def _execute_workflow_task(self, plan: TaskPlan, user_input: str, session: ExecutionSession) -> RouteResult:
         from agents.core.router import RouteResult
         from agents.workflow.workflow_engine import WorkflowEngine
         from agents.workflow.workflow_plan import WorkflowPlan, WorkflowNode
         import time
 
-        nodes = [
+        nodes: list[WorkflowNode] = [
             WorkflowNode(
                 node_id=n["node_id"],
                 role=n["role"],
@@ -243,9 +297,11 @@ class Orchestrator:
         max_agents = 5
         try:
             from core.config_manager import ConfigManager
-            max_agents = ConfigManager().get_config().agents.max_concurrent_agents
-        except Exception:
-            pass
+            max_agents: int = ConfigManager().get_config().agents.max_concurrent_agents
+        except (ImportError, AttributeError) as e:
+            logger.debug(f"Could not load config for max_agents, using default: {e}")
+        except Exception as e:
+            logger.debug(f"Unexpected error loading config: {e}")
 
         engine = WorkflowEngine(
             self.event_bus,
@@ -255,8 +311,8 @@ class Orchestrator:
             memory_service=self.memory,
             session=session,
         )
-        start = time.time()
-        result = await engine.execute(wf_plan)
+        start: float = time.time()
+        result: Dict[str, Any] = await engine.execute(wf_plan)
         return RouteResult(
             success=True,
             result=result,
@@ -285,12 +341,12 @@ class Orchestrator:
                 state_manager, tool_generator, tool_executor, safety_module, self.permission_engine
             )
 
-            goal = (
+            goal: Any | str = (
                 plan.context.get("parameters", [""])[0]
                 if plan.context.get("parameters")
                 else user_input
             )
-            result = await agent_loop.execute_autonomous_task(user_input, goal)
+            result: Dict[str, Any] = await agent_loop.execute_autonomous_task(user_input, goal)
             return RouteResult(
                 success=result.get("status") == "completed",
                 result=result,
@@ -309,7 +365,7 @@ class Orchestrator:
             )
 
     async def _safety_check(self, plan: TaskPlan, user_input: str) -> Dict[str, Any]:
-        permission_required = await self.permission_engine.is_permission_required(
+        permission_required: bool = await self.permission_engine.is_permission_required(
             plan.intent, plan.tools_required
         )
         if not permission_required:
@@ -335,11 +391,11 @@ class Orchestrator:
         return await self._wait_for_permission(timeout=10.0)
 
     async def _wait_for_permission(self, timeout: float = 10.0) -> Dict[str, Any]:
-        pending = getattr(self, "_pending_permission", None)
+        pending: Any | None = getattr(self, "_pending_permission", None)
         if not pending:
             return {"allowed": True, "reason": "No pending permission context"}
         try:
-            approved = await self.permission_engine.prompt_for_approval(
+            approved: bool = await self.permission_engine.prompt_for_approval(
                 pending["intent"],
                 pending["tools"],
                 pending["user_input"],
@@ -352,7 +408,7 @@ class Orchestrator:
         except asyncio.TimeoutError:
             return {"allowed": False, "reason": "Permission timeout"}
 
-    async def _handle_interrupt(self, event: Event):
+    async def _handle_interrupt(self, event: Event) -> None:
         if not self.config.enable_interrupts:
             return
         logger.info("Interrupt requested, cancelling current execution")
@@ -365,10 +421,10 @@ class Orchestrator:
             Event(Events.EXECUTION_CANCELLED, {"reason": event.payload.get("reason")}, "orchestrator")
         )
 
-    async def _handle_permission_granted(self, event: Event):
+    async def _handle_permission_granted(self, event: Event) -> None:
         logger.info("Permission granted for operation")
 
-    async def _handle_permission_denied(self, event: Event):
+    async def _handle_permission_denied(self, event: Event) -> None:
         logger.warning("Permission denied for operation")
 
     def _update_metrics(self, plan: Optional[TaskPlan], execution_time: float, success: bool):
@@ -402,8 +458,10 @@ class Orchestrator:
                 out["performance_monitor"] = (
                     self.runtime_context.performance_monitor.get_performance_report()
                 )
-            except Exception:
-                pass
+            except AttributeError as e:
+                logger.debug(f"Performance monitor not available: {e}")
+            except Exception as e:
+                logger.debug(f"Error getting performance report: {e}")
         if self.memory and hasattr(self.memory, "get_stats"):
             out["memory"] = self.memory.get_stats()
         return out
@@ -411,7 +469,7 @@ class Orchestrator:
     def get_execution_history(self, limit: int = 10) -> list:
         return self.execution_history[-limit:]
 
-    def reset_metrics(self):
+    def reset_metrics(self) -> None:
         self.metrics = {
             "total_requests": 0,
             "simple_tasks": 0,

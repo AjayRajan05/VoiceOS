@@ -4,11 +4,12 @@ Generates Python tools for autonomous agents with sandboxing and safety validati
 """
 
 import asyncio
+from io import TextIOWrapper
 import logging
 import ast
 import re
 import importlib.util
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Callable, Callable, Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
 from pathlib import Path
 import tempfile
@@ -20,7 +21,7 @@ from agents.autonomous.state_manager import AutonomousStateManager, ActionType
 from agents.core.safety import SafetyModule
 from permissions.permission_engine import PermissionEngine
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 @dataclass
 class GeneratedTool:
@@ -36,13 +37,13 @@ class GeneratedTool:
 class AutonomousToolGenerator:
     def __init__(self, state_manager: AutonomousStateManager, 
                  safety_module: SafetyModule, 
-                 permission_engine: PermissionEngine):
-        self.state_manager = state_manager
-        self.safety_module = safety_module
-        self.permission_engine = permission_engine
+                 permission_engine: PermissionEngine) -> None:
+        self.state_manager: AutonomousStateManager = state_manager
+        self.safety_module: SafetyModule = safety_module
+        self.permission_engine: PermissionEngine = permission_engine
         
         # Tool templates
-        self.tool_templates = {
+        self.tool_templates: Dict[str, Callable[..., str]] = {
             "web_scraper": self._get_web_scraper_template,
             "data_analyzer": self._get_data_analyzer_template,
             "file_processor": self._get_file_processor_template,
@@ -51,7 +52,7 @@ class AutonomousToolGenerator:
         }
         
         # Safety patterns to avoid
-        self.dangerous_patterns = [
+        self.dangerous_patterns: List[str] = [
             r'import\s+os\.system',
             r'os\.system\s*\(',
             r'subprocess\.(call|run|Popen)\s*\(',
@@ -67,7 +68,7 @@ class AutonomousToolGenerator:
         ]
         
         # Allowed imports for sandboxed execution
-        self.allowed_imports = {
+        self.allowed_imports: set[str] = {
             'json', 'csv', 'xml', 'html', 're', 'math', 'statistics',
             'datetime', 'time', 'random', 'collections', 'itertools',
             'functools', 'operator', 'string', 'textwrap', 'pathlib',
@@ -83,26 +84,26 @@ class AutonomousToolGenerator:
         """
         try:
             # Log tool generation start
-            action_id = self.state_manager.add_action(
+            action_id: str = self.state_manager.add_action(
                 task_id, ActionType.GENERATE_TOOL, 
                 f"Generating {tool_type} tool", requirements
             )
             
             # Get template
-            template_func = self.tool_templates.get(tool_type)
+            template_func: Callable[..., str] | None = self.tool_templates.get(tool_type)
             if not template_func:
-                error = f"Unknown tool type: {tool_type}"
+                error: str = f"Unknown tool type: {tool_type}"
                 self.state_manager.complete_action(task_id, action_id, error=error)
                 return None
             
             # Generate tool code
-            template = template_func(requirements)
-            tool_code = self._fill_template(template, requirements)
+            template: str = template_func(requirements)
+            tool_code: str = self._fill_template(template, requirements)
             
             # Validate safety
-            safety_result = await self._validate_tool_safety(tool_code, task_id)
+            safety_result: Dict[str, Any] = await self._validate_tool_safety(tool_code, task_id)
             if not safety_result["safe"]:
-                error = f"Tool safety validation failed: {safety_result['reason']}"
+                error: str = f"Tool safety validation failed: {safety_result['reason']}"
                 self.state_manager.complete_action(task_id, action_id, error=error)
                 return None
             
@@ -135,7 +136,6 @@ class AutonomousToolGenerator:
             return tool
             
         except Exception as e:
-            logger.error(f"Tool generation failed: {e}")
             if 'action_id' in locals():
                 self.state_manager.complete_action(task_id, action_id, error=str(e))
             return None
@@ -147,13 +147,13 @@ class AutonomousToolGenerator:
         """
         try:
             # Log custom tool generation
-            action_id = self.state_manager.add_action(
+            action_id: str = self.state_manager.add_action(
                 task_id, ActionType.GENERATE_TOOL,
                 "Generating custom tool", {"description": description}
             )
             
             # Analyze requirements and generate code
-            tool_code = await self._generate_custom_code(description, requirements)
+            tool_code: str | None = await self._generate_custom_code(description, requirements)
             
             if not tool_code:
                 error = "Failed to generate custom tool code"
@@ -161,9 +161,9 @@ class AutonomousToolGenerator:
                 return None
             
             # Validate safety
-            safety_result = await self._validate_tool_safety(tool_code, task_id)
+            safety_result: Dict[str, Any] = await self._validate_tool_safety(tool_code, task_id)
             if not safety_result["safe"]:
-                error = f"Custom tool safety validation failed: {safety_result['reason']}"
+                error: str = f"Custom tool safety validation failed: {safety_result['reason']}"
                 self.state_manager.complete_action(task_id, action_id, error=error)
                 return None
             
@@ -193,7 +193,6 @@ class AutonomousToolGenerator:
             return tool
             
         except Exception as e:
-            logger.error(f"Custom tool generation failed: {e}")
             if 'action_id' in locals():
                 self.state_manager.complete_action(task_id, action_id, error=str(e))
             return None
@@ -215,11 +214,11 @@ class AutonomousToolGenerator:
             
             # Parse AST to check imports
             try:
-                tree = ast.parse(code)
-                imports = self._extract_imports(tree)
+                tree: ast.Module = ast.parse(code)
+                imports: List[str] = self._extract_imports(tree)
                 
                 # Check for disallowed imports
-                disallowed = [imp for imp in imports if imp not in self.allowed_imports]
+                disallowed: List[str] = [imp for imp in imports if imp not in self.allowed_imports]
                 if disallowed:
                     return {
                         "safe": False,
@@ -249,7 +248,6 @@ class AutonomousToolGenerator:
             }
             
         except Exception as e:
-            logger.error(f"Safety validation error: {e}")
             return {
                 "safe": False,
                 "reason": f"Safety validation error: {e}",
@@ -273,17 +271,17 @@ class AutonomousToolGenerator:
         
         return imports
     
-    async def _save_tool(self, tool: GeneratedTool, task_id: str):
+    async def _save_tool(self, tool: GeneratedTool, task_id: str) -> None:
         """
         Save tool to workspace
         """
         try:
             # Create tools directory
-            tools_dir = Path(tool.workspace_path) / "tools"
+            tools_dir: Path = Path(tool.workspace_path) / "tools"
             tools_dir.mkdir(exist_ok=True)
             
             # Save tool code
-            tool_file = tools_dir / f"{tool.name}.py"
+            tool_file: Path = tools_dir / f"{tool.name}.py"
             with open(tool_file, 'w', encoding='utf-8') as f:
                 f.write(tool.code)
             
@@ -298,9 +296,8 @@ class AutonomousToolGenerator:
                 "created_at": time.time()
             }
             
-            metadata_file = tools_dir / f"{tool.name}_metadata.json"
+            metadata_file: Path = tools_dir / f"{tool.name}_metadata.json"
             with open(metadata_file, 'w', encoding='utf-8') as f:
-                import json
                 json.dump(metadata, f, indent=2)
             
             # Add to state manager
@@ -312,7 +309,7 @@ class AutonomousToolGenerator:
             logger.error(f"Failed to save tool: {e}")
             raise
     
-    async def _register_tool(self, tool: GeneratedTool, task_id: str):
+    async def _register_tool(self, tool: GeneratedTool, task_id: str) -> None:
         """
         Register tool for dynamic execution
         """
@@ -332,7 +329,7 @@ class AutonomousToolGenerator:
         # This would use the LLM to generate code
         # For now, return a basic template
         
-        template = f'''
+        template: str = f'''
 """
 Custom Tool: {description}
 Generated for autonomous task execution
@@ -354,8 +351,7 @@ def execute_tool(parameters: Dict[str, Any]) -> Dict[str, Any]:
         result = {{"status": "success", "message": "Tool executed successfully"}}
         return result
         
-    except Exception as e:
-        logger.error(f"Tool execution failed: {{e}}")
+    except Exception as e
         return {{"status": "error", "error": str(e)}}
 
 if __name__ == "__main__":
@@ -373,7 +369,7 @@ if __name__ == "__main__":
         """
         # Simple template filling - in production, use proper templating
         for key, value in requirements.items():
-            placeholder = f"{{{key}}}"
+            placeholder: str = f"{{{key}}}"
             if placeholder in template:
                 template = template.replace(placeholder, str(value))
         
@@ -400,7 +396,7 @@ logger = logging.getLogger(__name__)
 
 def scrape_url(url: str, selector: str = None) -> Dict[str, Any]:
     """
-    Scrape content from a URL
+    Scrape content from a URL with comprehensive error handling
     """
     try:
         headers = {
@@ -426,11 +422,46 @@ def scrape_url(url: str, selector: str = None) -> Dict[str, Any]:
             "status_code": response.status_code
         }
         
-    except Exception as e:
-        logger.error(f"Scraping failed for {url}: {e}")
+    except requests.ConnectionError as e
+        return {
+            "status": "error",
+            "error": "Connection failed",
+            "error_type": "connection_error",
+            "url": url
+        }
+    except requests.Timeout as e
+        return {
+            "status": "error",
+            "error": "Request timeout",
+            "error_type": "timeout",
+            "url": url
+        }
+    except requests.HTTPError as e
+        return {
+            "status": "error",
+            "error": f"HTTP {e.response.status_code}",
+            "error_type": "http_error",
+            "url": url
+        }
+    except requests.RequestException as e
         return {
             "status": "error",
             "error": str(e),
+            "error_type": "request_error",
+            "url": url
+        }
+    except (AttributeError, ValueError) as e
+        return {
+            "status": "error",
+            "error": "Parsing failed",
+            "error_type": "parsing_error",
+            "url": url
+        }
+    except Exception as e
+        return {
+            "status": "error",
+            "error": str(e),
+            "error_type": "unknown_error",
             "url": url
         }
 
@@ -512,8 +543,7 @@ def analyze_data(data: List[Dict[str, Any]], analysis_type: str = "basic") -> Di
         
         return result
         
-    except Exception as e:
-        logger.error(f"Data analysis failed: {e}")
+    except Exception as e
         return {"status": "error", "error": str(e)}
 
 def execute_tool(parameters: Dict[str, Any]) -> Dict[str, Any]:
@@ -579,16 +609,14 @@ def process_files(directory: str, operation: str = "list") -> Dict[str, Any]:
             if filename:
                 file_path = dir_path / filename
                 if file_path.exists():
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
+                    with open(file_path, 'r', encoding='utf-8') as f
                     result["content"] = content
                 else:
                     result["error"] = f"File {filename} not found"
         
         return result
         
-    except Exception as e:
-        logger.error(f"File processing failed: {e}")
+    except Exception as e
         return {"status": "error", "error": str(e)}
 
 def execute_tool(parameters: Dict[str, Any]) -> Dict[str, Any]:
@@ -646,7 +674,9 @@ def call_api(url: str, method: str = "GET", headers: Dict[str, str] = None,
         
         try:
             result_data = response.json()
-        except:
+        except (ValueError, requests.exceptions.JSONDecodeError) as e
+            result_data = response.text
+        except Exception as e
             result_data = response.text
         
         return {
@@ -658,8 +688,7 @@ def call_api(url: str, method: str = "GET", headers: Dict[str, str] = None,
             "headers": dict(response.headers)
         }
         
-    except Exception as e:
-        logger.error(f"API call failed: {e}")
+    except Exception as e
         return {"status": "error", "error": str(e), "url": url}
 
 def execute_tool(parameters: Dict[str, Any]) -> Dict[str, Any]:
@@ -727,8 +756,7 @@ def run_automation(steps: List[Dict[str, Any]]) -> Dict[str, Any]:
                     # Safe evaluation - only basic math
                     result = eval(expression, {"__builtins__": {}}, {})
                     results.append({"step": i, "type": "calculate", "expression": expression, "result": result})
-                except Exception as e:
-                    results.append({"step": i, "type": "calculate", "error": str(e)})
+                except Exception as e
             
             else:
                 results.append({"step": i, "type": step_type, "error": "Unknown step type"})
@@ -739,8 +767,7 @@ def run_automation(steps: List[Dict[str, Any]]) -> Dict[str, Any]:
             "results": results
         }
         
-    except Exception as e:
-        logger.error(f"Automation failed: {e}")
+    except Exception as e
         return {"status": "error", "error": str(e)}
 
 def execute_tool(parameters: Dict[str, Any]) -> Dict[str, Any]:

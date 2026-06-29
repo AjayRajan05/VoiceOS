@@ -201,13 +201,15 @@ class UiRouteHandlers:
     async def login_handler(self):
         error = None
         if request.method == "POST":
-            user = dotenv.get_dotenv_value("AUTH_LOGIN")
-            password = dotenv.get_dotenv_value("AUTH_PASSWORD")
-
-            if request.form["username"] == user and request.form["password"] == password:
+            username = request.form.get("username", "")
+            password = request.form.get("password", "")
+            
+            # Use secure credential verification with constant-time comparison
+            if login.verify_credentials(username, password):
                 session["authentication"] = login.get_credentials_hash()
                 return redirect(url_for("serve_index"))
             else:
+                # Prevent timing attacks with consistent delay
                 await asyncio.sleep(1)
                 error = "Invalid Credentials. Please try again."
 
