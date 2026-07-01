@@ -8,7 +8,6 @@ import asyncio
 import tempfile
 import shutil
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 from tools.file_tools.enhanced_file_manager import EnhancedFileManager
 from tools.web_tools.browser_tool import BrowserTool

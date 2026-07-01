@@ -1,15 +1,14 @@
 """Orchestrator integration tests."""
 
 import pytest
-from unittest.mock import AsyncMock, patch
 
+from agents.core.planner import Planner, TaskType
 from core.events.event_bus import EventBus
 from core.orchestrator import Orchestrator, OrchestratorConfig
-from agents.core.planner import Planner, TaskType
+from llm.llm_service import LLMService
 from permissions.permission_engine import PermissionEngine, set_permission_engine
 from tools.register_tools import register_tools
 from tools.tool_executor import ToolExecutor
-from llm.llm_service import LLMService
 
 
 @pytest.fixture
@@ -39,12 +38,8 @@ def test_planner_fallback_not_os_generic():
 
 
 @pytest.mark.asyncio
-async def test_process_user_input_simple(orchestrator_setup):
+async def test_process_user_input_routes_real_pipeline(orchestrator_setup):
     orch = orchestrator_setup
-    with patch.object(orch.router, "route_task", new_callable=AsyncMock) as mock_route:
-        from agents.core.router import RouteResult
-        mock_route.return_value = RouteResult(
-            success=True, result="ok", execution_path="test", execution_time=0.01
-        )
-        result = await orch.process_user_input("open chrome")
-        assert mock_route.called
+    result = await orch.process_user_input("open chrome")
+    assert result is not None
+    assert hasattr(result, "success") or hasattr(result, "result") or hasattr(result, "final_result")

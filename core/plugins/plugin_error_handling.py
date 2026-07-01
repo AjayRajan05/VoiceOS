@@ -561,21 +561,33 @@ class PluginErrorHandler:
         }
     
     async def _retry_operation(self, error: PluginError) -> Dict[str, Any]:
-        """Retry the failed operation"""
-        # This would implement retry logic
-        # For now, simulate retry failure
+        """Retry the failed operation (caller must re-invoke the operation)."""
         return {
             "success": False,
-            "message": "Retry failed"
+            "message": "Retry not available without operation context",
         }
-    
+
     async def _restart_plugin(self, plugin_name: str) -> Dict[str, Any]:
-        """Restart a plugin"""
-        # This would integrate with lifecycle manager
-        # For now, simulate restart
+        """Restart a plugin via unload + load."""
+        from core.plugins.plugin_lifecycle import get_lifecycle_manager
+
+        manager = get_lifecycle_manager()
+        unload = await manager.unload_plugin(plugin_name)
+        if not unload.get("success"):
+            return {
+                "success": False,
+                "message": unload.get("error", f"Failed to unload {plugin_name}"),
+            }
+        load = await manager.load_plugin(plugin_name)
+        if not load.get("success"):
+            return {
+                "success": False,
+                "message": load.get("error", f"Failed to reload {plugin_name}"),
+            }
+        init = await manager.initialize_plugin(plugin_name, {})
         return {
-            "success": True,
-            "message": f"Plugin {plugin_name} restarted"
+            "success": bool(init.get("success")),
+            "message": init.get("message", f"Plugin {plugin_name} restarted"),
         }
     
     async def _disable_plugin(self, plugin_name: str) -> Dict[str, Any]:

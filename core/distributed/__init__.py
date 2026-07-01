@@ -2,7 +2,8 @@
 
 from core.distributed.task_queue import RedisTaskQueue, TaskEnvelope
 from core.distributed.worker_registry import WorkerRegistry
-from core.distributed.runtime import configure_distributed_runtime, get_distributed_status, resolve_execution_mode, redis_available
+from core.distributed.runtime import configure_distributed_runtime, get_distributed_status, get_startup_advisory, resolve_execution_mode, redis_available
+from core.distributed.routing import should_offload_to_workers, is_queued_execution
 
 # FastA2A integration hook: when EXECUTION_MODE=queued, workers consume
 # TaskEnvelope items from RedisTaskQueue. Future: swap InMemoryBroker in
@@ -14,6 +15,9 @@ __all__ = [
     "WorkerRegistry",
     "configure_distributed_runtime",
     "get_distributed_status",
+    "get_startup_advisory",
+    "is_queued_execution",
     "resolve_execution_mode",
     "redis_available",
+    "should_offload_to_workers",
 ]

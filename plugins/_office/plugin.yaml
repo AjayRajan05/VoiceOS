@@ -1,8 +1,0 @@
-name: _office
-title: LibreOffice
-description: Markdown-first writing and LibreOffice-backed document artifacts in the right canvas.
-version: "0.1"
-settings_sections:
-  - developer
-per_project_config: false
-per_agent_config: false

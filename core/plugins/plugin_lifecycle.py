@@ -665,24 +665,29 @@ class PluginLifecycleManager:
     def _create_plugin_instance(self, manifest: PluginManifest) -> VoiceOSPluginInterface:
         """Create plugin instance (simplified)"""
         # In real implementation, this would create the actual plugin instance
-        class MockPlugin(VoiceOSPluginInterface):
+        class ManifestOnlyPlugin(VoiceOSPluginInterface):
+            """Placeholder when a plugin entry has no loadable implementation."""
+
             def __init__(self, manifest: PluginManifest):
                 self.manifest = manifest
-            
+
             def get_manifest(self) -> PluginManifest:
                 return self.manifest
-            
+
             async def initialize(self, voiceos_context: Dict[str, Any]) -> bool:
                 return True
-            
+
             async def execute_operation(self, operation: str, params: Dict[str, Any],
                                       security_policy: SecurityPolicy) -> Dict[str, Any]:
-                return {"success": True, "result": f"Mock {operation} executed"}
-            
+                return {
+                    "success": False,
+                    "error": f"Plugin {self.manifest.name} has no executable implementation loaded",
+                }
+
             async def cleanup(self) -> None:
                 pass
-        
-        return MockPlugin(manifest)
+
+        return ManifestOnlyPlugin(manifest)
     
     async def _health_monitor(self):
         """Monitor plugin health"""

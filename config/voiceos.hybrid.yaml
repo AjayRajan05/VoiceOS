@@ -1,7 +1,6 @@
-# Host-side hybrid config: voice + OS on the machine, heavy work in Docker workers.
+# Host-side hybrid config (optional — config/voiceos.yaml now defaults to execution_mode: auto).
 # Start infra: docker compose --profile core --profile workers up -d
-# Optional LLM:  docker compose --profile llm up -d
-# Run host:      python main.py --config config/voiceos.hybrid.yaml
+# Or use:      .\scripts\start_hybrid.ps1  /  ./scripts/start_hybrid.sh
 
 environment: development
 debug: false

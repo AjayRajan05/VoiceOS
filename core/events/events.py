@@ -5,6 +5,7 @@ class Events:
     SPEECH_TRANSCRIBED = "speech_transcribed"
 
     USER_MESSAGE = "user_message"
+    SHELL_STATE_CHANGED = "shell_state_changed"
 
     LLM_DECISION = "llm_decision"
 
@@ -48,3 +49,8 @@ class Events:
     TASK_COMPLETED = "task_completed"
     TASK_FAILED = "task_failed"
     EXECUTION_CANCELLED = "execution_cancelled"
+
+    # Subagent delegation events
+    SUBAGENT_STARTED = "subagent_started"
+    SUBAGENT_PROGRESS = "subagent_progress"
+    SUBAGENT_COMPLETED = "subagent_completed"

@@ -1,392 +1,315 @@
-<p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:667eea,100:764ba2&height=220&section=header&text=VoiceOS&fontSize=60&fontColor=ffffff"/>
-</p>
+# VoiceOS
 
-<h1 align="center">VoiceOS</h1>
-<p align="center">
-  <strong>A Voice + CLI Driven Multi-Agent Operating System with Autonomous AI Capabilities</strong>
-</p>
+**Talk to your computer. It listens, plans, and gets things done — safely.**
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.10%2B-blue?logo=python"/>
-  <img src="https://img.shields.io/badge/AI-Multi--Agent-purple"/>
-  <img src="https://img.shields.io/badge/Voice-Whisper%20%2B%20Kokoro-violet"/>
-  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker"/>
-  <img src="https://img.shields.io/badge/Local--First-Offline%20AI-green"/>
-  <img src="https://img.shields.io/badge/License-MIT-orange"/>
-</p>
+VoiceOS is a free, open-source assistant you run on your own computer (Windows, macOS, or Linux). You can **speak** or **type** everyday requests — open apps, search the web, write files, run code, research topics, and multi-step projects — and VoiceOS handles the work using AI agents behind the scenes.
+
+VoiceOS does **not** replace your operating system. It sits **on top** of it: your voice and keyboard stay on your machine, sensitive desktop actions stay on your machine, and heavy AI work can optionally run in Docker containers for speed and isolation.
 
 ---
 
-## What is VoiceOS?
+## Who is this for?
 
-VoiceOS is a **locally-run, voice-controlled AI operating system interface** built in Python. You speak (or type) natural-language commands; VoiceOS listens, plans, routes work to specialized AI agents, executes tools on your machine, and responds by voice or text — with permission checks and sandboxing throughout.
+- **Anyone** who wants a local, privacy-friendly AI assistant on their desktop  
+- **Developers** who want voice + agents + OS automation in one stack  
+- **Teams** who want permission prompts, audit logs, and optional Docker offload  
 
-It is **not a replacement for Windows/macOS/Linux** — it is a **control layer on top of your OS**: an always-on assistant that can open apps, automate the desktop, research the web, write code, manage files, and run multi-step autonomous workflows — all from your machine, with local models where possible.
-
-> **Voice-Controlled · Multi-Agent · Autonomous AI · Permission-Gated · Local-First**
-
----
-
-## Key Features
-
-| Feature | Description |
-|---------|-------------|
-| 🎤 **Voice + CLI Input** | Speak or type commands; real-time STT via Whisper (`faster-whisper`) |
-| 🧠 **Multi-Agent System** | Core agents (Planner, Router, Safety) + YAML-defined dynamic roles |
-| 🤖 **Autonomous Loop** | Iterative `think → decide → act → observe` execution for complex goals |
-| 🔎 **Web Research Engine** | DuckDuckGo search + BeautifulSoup scraping + multi-source synthesis |
-| 💻 **Code Development** | Generate, edit, execute, and debug scripts in a sandboxed workspace |
-| 🛠️ **OS Automation** | Open apps, switch windows, control keyboard/clipboard, take screenshots |
-| 🔌 **Plugin Marketplace** | 24 built-in plugins (browser, memory, Telegram, WhatsApp, office, etc.) |
-| 🔐 **Safety Architecture** | Permission-gated (LOW/MEDIUM/HIGH), sandbox isolation, full audit logging |
-| ⚡ **Distributed Workers** | Optional Redis queue + role-based worker processes for scaled execution |
-| 🗣️ **TTS Output** | Spoken responses via Kokoro TTS (Coqui fallback) |
+No cloud account is required. You can use local AI (Ollama) or optional API keys (OpenAI, Anthropic).
 
 ---
 
-## Architecture
+## What can VoiceOS do?
 
-```mermaid
-graph TB
-    subgraph Input
-        MIC[Microphone / CLI]
-    end
+| You say or type… | VoiceOS can… |
+|------------------|--------------|
+| “Open Chrome” | Launch and control desktop apps |
+| “Take a screenshot” | Automate keyboard, mouse, clipboard, windows |
+| “Research quantum computing trends” | Search the web and summarize with an AI agent |
+| “Write a Python script to parse CSV files” | Generate and run code in a sandbox |
+| “Build a scraper and analyze the results” | Run a multi-step autonomous workflow |
+| “Continue what we were doing” | Resume your last conversation (saved locally) |
 
-    subgraph Voice Pipeline
-        STT[Whisper STT]
-        TTS[Kokoro TTS]
-        INT[Interrupt Controller]
-    end
-
-    subgraph Core
-        EB[Event Bus]
-        ORCH[Orchestrator]
-        PLAN[Planner Agent]
-        ROUTE[Router Agent]
-        SAFE[Safety Agent]
-        PERM[Permission Engine]
-    end
-
-    subgraph Agents
-        DYN[Dynamic Agents\nResearcher · Developer · Analyst]
-        AUTO[Autonomous Loop\nThink → Decide → Act → Observe]
-    end
-
-    subgraph Execution
-        TOOLS[Native Tools\nFile · Web · Code · OS · Docs · Scheduler]
-        PLUG[24 Plugins]
-        WS[Workspace Sandbox]
-    end
-
-    MIC --> STT --> EB
-    EB --> ORCH --> PLAN --> ROUTE
-    ROUTE --> DYN & AUTO
-    DYN & AUTO --> TOOLS & PLUG
-    TOOLS & PLUG --> PERM --> SAFE --> WS
-    ORCH --> TTS
-    ORCH --> INT
-```
+VoiceOS asks for **approval** before risky actions (deleting files, running code, some OS operations) unless you change the policy profile.
 
 ---
 
-## Execution Modes
-
-| Mode | Latency | Trigger | Description |
-|------|---------|---------|-------------|
-| **Simple** | < 1s | Direct command | Direct tool execution — open app, type text, screenshot |
-| **Complex** | 1–30s | Research/dev tasks | Dynamic agent (Researcher, Developer, Analyst) |
-| **Autonomous** | 1–5 min | Multi-step goals | Iterative agent loop with tool generation and self-correction |
-
----
-
-## Project Structure
+## How it works (simple picture)
 
 ```
-project/
-├── main.py                    # Entry point — wires all components
-├── config/
-│   └── voiceos.yaml           # Main configuration
-├── agents/
-│   ├── core/                  # Planner, Router, Safety agents
-│   ├── autonomous/            # Autonomous agent loop
-│   ├── dynamic/               # Dynamic agent executor
-│   └── roles/                 # YAML-defined agent roles (researcher, developer, analyst)
-├── core/
-│   ├── orchestrator.py        # System orchestrator
-│   ├── config.py              # Configuration management
-│   ├── logger.py              # Structured logging
-│   ├── security.py            # Security system
-│   ├── events/                # EventBus, event types, handlers
-│   ├── cli/                   # VoiceCLIIntegration, response builder
-│   ├── plugins/               # Plugin lifecycle, registry, config, monitoring
-│   ├── helpers/               # Helper bridge and discovery
-│   ├── extensions/            # Hook-based extension points
-│   ├── integration/           # Integration patterns and controlled execution
-│   ├── monitoring/            # Performance monitor, error recovery
-│   ├── pipelines/             # Stream pipeline
-│   └── system/                # Unified dashboard, system verification
-├── tools/
-│   ├── file_tools/            # EnhancedFileManager
-│   ├── web_tools/             # BrowserTool (search, scrape)
-│   ├── code_tools/            # CodeExecutor (sandboxed)
-│   ├── document_tools/        # DocumentProcessor (PDF, DOCX, TXT)
-│   ├── scheduler_tools/       # TaskScheduler
-│   └── os_control/            # App launch, window control, keyboard, clipboard
-├── audio/                     # VoicePipeline, microphone, streaming STT
-├── tts/                       # TTS engine factory (Kokoro / Coqui)
-├── interrupt/                 # InterruptController, SpeechState, TTSController
-├── listener/                  # BackchannelEngine, speech activity detection
-├── llm/                       # LLMClient, ConversationEngine, model paths
-├── memory/                    # MemoryManager, entity extraction
-├── model_manager/             # Auto model download and hardware detection
-├── permissions/               # PermissionEngine, audit logging
-├── plugins/                   # 24 bundled plugins
-├── helpers/                   # Agent Zero UI server, settings, extensions
-├── workers/                   # agent_worker.py (distributed mode)
-├── workspace/                 # Sandboxed task workspaces (task_[id]/)
-├── scripts/                   # verify_setup.py, install_deps.py
-├── docs/                      # Full documentation
-├── Dockerfile                 # Main service container
-├── Dockerfile.worker          # Worker service container
-└── docker-compose.yml         # Full stack (VoiceOS + Redis + Postgres)
+You (voice or keyboard)
+        ↓
+VoiceOS on your computer  ← microphone, speakers, permissions, desktop control
+        ↓
+Optional Docker workers   ← heavy research, coding, long agent tasks
+        ↓
+Your apps, files, and browser
 ```
+
+- **Host** = your computer running VoiceOS (voice, safety, opening apps).  
+- **Compute** = optional Docker workers for heavy tasks when Redis is running.  
+- If Docker is off, VoiceOS still works — everything runs on your CPU.
 
 ---
 
-## AI Models (Local-First)
+## What you need
 
-`ModelManager` auto-detects available RAM and downloads appropriate models on first run:
-
-| Component | Technology | Notes |
-|-----------|-----------|-------|
-| **STT** | OpenAI Whisper via `faster-whisper` | `base` by default; configurable |
-| **TTS** | Kokoro (primary), Coqui (fallback) | Kokoro works on all platforms |
-| **LLM** | Mistral-7B-Instruct (GGUF) or Ollama | Chosen by available RAM |
-| **Embeddings** | sentence-transformers + ChromaDB | Used by memory plugin |
-
-Cloud API keys (OpenAI, Anthropic) are optional fallbacks configured in `.env`.
+| Requirement | Notes |
+|-------------|--------|
+| **Python 3.10+** | [python.org](https://www.python.org/downloads/) — check “Add to PATH” on Windows |
+| **Microphone** | For voice mode (optional if you only use typing) |
+| **~8 GB RAM** | 16 GB+ recommended for local AI models |
+| **Docker Desktop** | Optional but recommended for heavy tasks ([docker.com](https://www.docker.com/products/docker-desktop/)) |
+| **Ollama** | Optional local LLM ([ollama.com](https://ollama.com)) — or use cloud API keys |
 
 ---
 
-## Safety Model
+## Quick start (5 steps)
 
-Every action passes through a four-stage safety pipeline:
-
-```
-Agent → Safety Check → Permission Gate → Execution → Audit Log
-```
-
-| Level | Examples | Behavior |
-|-------|---------|---------|
-| **LOW** | Read files, list directory, web search | Silent allow |
-| **MEDIUM** | Write files, open apps, web scraping | User confirmation |
-| **HIGH** | Delete files, execute code, system ops | Explicit approval required |
-
-All operations are confined to `workspace/task_[id]/` directories, preventing agents from touching arbitrary system paths.
-
----
-
-## Quick Start
-
-### Local (Recommended)
+### 1. Get the code
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/AjayRajan05/VoiceOS.git
+cd VoiceOS/project
+```
 
-# 2. Create and activate virtual environment
+### 2. Create a virtual environment
+
+**Windows (PowerShell):**
+```powershell
 python -m venv .venv
-.venv\Scripts\activate          # Windows
-# source .venv/bin/activate     # macOS / Linux
+.\.venv\Scripts\Activate.ps1
+```
 
-# 3. Install dependencies
+**macOS / Linux:**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 3. Install VoiceOS
+
+```bash
 pip install -r requirements.txt
-
-# 4. Configure environment
-cp .env.example .env
-# Edit .env — set LLM_ENDPOINT, API keys, etc.
-
-# 5. Verify setup
-python scripts/verify_setup.py
-
-# 6. Run VoiceOS
-python main.py                   # Hybrid mode (voice + CLI)
-python main.py --mode voice      # Voice only
-python main.py --mode cli        # CLI only
-python main.py --status          # System health check
-python main.py --test            # Run system tests
+pip install -e .
 ```
 
-### Docker
+On first run, VoiceOS can create a `.env` file from `.env.example` automatically.
+
+### 4. Check your system
 
 ```bash
-# Build and run full stack (VoiceOS + Redis + Postgres)
-docker-compose up --build
-
-# Run in detached mode
-docker-compose up -d
-
-# Run with GPU support
-docker-compose --profile gpu up
-
-# Access an interactive shell
-docker-compose exec voiceos bash
+voiceos-doctor
 ```
 
-Models persist in `./models/`, workspaces in `./workspace/`, logs in `./logs/`.
+This reports Docker, Redis, workers, microphone, LLM endpoint, and optional host bridge status. Fix anything marked **FAIL** before continuing (see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)).
+
+### 5. Start VoiceOS
+
+**Easiest (recommended on Windows):**
+```powershell
+.\scripts\start_hybrid.ps1
+voiceos --mode hybrid
+```
+
+**macOS / Linux:**
+```bash
+./scripts/start_hybrid.sh
+voiceos --mode hybrid
+```
+
+**Hybrid mode** = speak **and** type at the same time.
+
+At the `VoiceOS>` prompt, try:
+- `help` — list commands  
+- `open notepad` — simple OS task  
+- `research latest AI news` — agent task (uses Docker workers if available)  
+- `quit` — exit  
 
 ---
 
-## Example Commands
+## Commands you will use
 
-**Simple (instant):**
-```
-"Open Chrome"
-"Take a screenshot"
-"Type hello world"
-"Switch window"
-```
+After `pip install -e .`, these commands are available in your terminal:
 
-**Complex (agent-driven, seconds):**
-```
-"Research the latest developments in quantum computing"
-"Write a Python function to parse CSV files"
-"Summarize the latest AI news"
-```
+| Command | What it does |
+|---------|----------------|
+| `voiceos` | Start VoiceOS (same as `python main.py`) |
+| `voiceos-doctor` | Health check for your machine |
+| `voiceos-compute` | Start Redis + Docker workers only |
+| `voiceos-bridge` | Optional always-on OS automation service |
+| `voiceos-shell` | Voice session with wake word (“hey voiceos”) |
+| `voiceos-ecosystem` | List plugins/skills and export intent schema |
+| `voiceos-audit-export` | Export permission audit log for review |
 
-**Autonomous (multi-step loop, minutes):**
-```
-"Build a complete web scraper for product prices and analyze trends"
-"Automate my daily sales report generation"
-"Create a REST API with Flask and write tests for it"
-```
-
-**IDE workflow:**
-```
-"Open VS Code"
-"Create file workspace/hello.py with a hello world script"
-"Run file workspace/hello.py"
+**Main program options:**
+```bash
+voiceos --mode hybrid    # voice + typing (default)
+voiceos --mode cli       # typing only
+voiceos --mode voice     # microphone only
+voiceos --doctor         # run doctor and exit
+voiceos --status         # show system status
+python main.py --test    # run built-in tests
 ```
 
 ---
 
-## Plugins (24 Built-in)
+## Voice session (wake word)
 
-| Plugin | Function |
-|--------|---------|
-| `_browser` | Playwright-based web browsing |
-| `_memory` | Long-term recall with vector search (ChromaDB) |
-| `_code_execution` | Sandboxed script execution |
-| `_text_editor` | File creation and editing bridge |
-| `_office` | Word/Excel/PowerPoint processing |
-| `_telegram_integration` | Telegram bot integration |
-| `_whatsapp_integration` | WhatsApp messaging |
-| `_email_integration` | Email send/receive |
-| `_model_config` | LLM provider configuration |
-| `_skills` | Custom skill definitions |
-| `_marketplace` | Plugin discovery and install |
-| `_plugin_installer` | Automated plugin deployment |
-| `_chat_branching` | Conversation branching |
-| `_chat_compaction` | Conversation history management |
-| `_a0_connector` | Agent Zero UI server bridge |
-| `_discovery` | Extension auto-discovery |
-| `_error_retry` | Automatic error retry |
-| `_infection_check` | Security scanning |
-| `_oauth` | OAuth authentication |
-| `_onboarding` | First-run setup wizard |
-| `_plugin_scan` | Plugin security scanner |
-| `_plugin_validator` | Plugin compatibility validation |
-| `_promptinclude` | Prompt template inclusion |
-| `_time_travel` | Conversation history navigation |
-
----
-
-## Configuration
-
-Key environment variables (see [`.env.example`](.env.example)):
+For a hands-free style session:
 
 ```bash
-# LLM backend (Ollama or GGUF)
-LLM_ENDPOINT=http://localhost:11434/api/generate
-LLM_MODEL=mistral
+voiceos-shell
+```
 
-# Voice models
-WHISPER_MODEL=base
-TTS_MODEL=tts_models/en/ljspeech/tacotron2-DDC
+Say **“hey voiceos”**, then your command — for example: *“hey voiceos, open Chrome”*.
 
-# Optional cloud fallback
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
+Other useful phrases:
+- *“continue what we were doing”* — resume last session  
+- *“new conversation”* — start fresh  
+- *“stop”* or *“cancel”* — interrupt speech  
 
-# Execution mode (local | queued for distributed)
-EXECUTION_MODE=local
+---
+
+## Docker and heavy tasks (optional)
+
+For research, coding, and long agent work, start the **compute plane**:
+
+```bash
+voiceos-compute --workers 2
+```
+
+Or use the hybrid script (bridge + compute):
+
+```powershell
+.\scripts\start_hybrid.ps1   # Windows
+./scripts/start_hybrid.sh    # macOS / Linux
+```
+
+Set in `.env`:
+```bash
+EXECUTION_MODE=auto
 REDIS_URL=redis://localhost:6379/0
 ```
 
+With `auto`, VoiceOS uses Docker workers when Redis is up; otherwise it falls back to your CPU with a startup warning.
+
+| Tier | What you have | Experience |
+|------|----------------|------------|
+| Full hybrid | Docker + Redis + workers | Best for heavy tasks |
+| Partial | Docker + Redis, no workers | Start workers with `voiceos-compute` |
+| Local only | No Docker | Everything on host; CLI mode works well |
+
+Details: [docs/DOCKER.md](docs/DOCKER.md)
+
 ---
 
-## Distributed Mode
+## Safety and privacy
 
-For large workloads, switch to queued execution with worker processes:
+- **Local-first** — models and conversation history stay on your disk (`workspace/`, `models/`, `logs/`).  
+- **Permission levels** — LOW / MEDIUM / HIGH; risky tools prompt you in the terminal.  
+- **Policy profiles** — `personal` (default), `work` (stricter), `unattended` (no prompts, auto-deny risky actions). Set `VOICEOS_POLICY_PROFILE` in `.env`.  
+- **Audit log** — `logs/audit.log` records approvals and worker actions. Export with `voiceos-audit-export`.  
+- **Sandbox** — agent file work stays under `workspace/`; code can run in Docker workers.  
+- **OS automation never runs in Docker workers** — opening apps and screenshots always stay on your computer.
+
+---
+
+## Configuration (short version)
+
+Copy and edit environment settings:
 
 ```bash
-# In config/voiceos.yaml or .env:
-# execution_mode: queued
-
-# Start worker(s) with specific agent roles
-python workers/agent_worker.py --roles researcher,developer,analyst
+cp .env.example .env
 ```
 
-Workers register with heartbeat; the orchestrator routes tasks via Redis queue.
+Important settings:
+
+| Variable | Meaning |
+|----------|---------|
+| `LLM_ENDPOINT` | Ollama URL (default `http://localhost:11434/api/generate`) |
+| `LLM_MODEL` | Model name (e.g. `mistral`, `llama3`) |
+| `EXECUTION_MODE` | `auto`, `local`, or `queued` |
+| `PERMISSION_LEVEL` | `low`, `medium`, or `high` |
+| `VOICEOS_POLICY_PROFILE` | `personal`, `work`, or `unattended` |
+| `VOICEOS_BRIDGE_MODE` | `auto`, `bridge`, or `local` |
+
+Full reference: [docs/CONFIGURATION.md](docs/CONFIGURATION.md)
+
+Main YAML config: `config/voiceos.yaml`
 
 ---
 
-## Roadmap
+## Plugins and skills
 
-- [x] Native VoiceOS tools integration (file, web, code, document, scheduler, OS)
-- [x] Permission-based safety system with audit logging
-- [x] Multi-agent execution modes (simple / complex / autonomous)
-- [x] Parallel multi-agent workflows with meta-planner
-- [x] Plugin marketplace (24 built-in plugins)
-- [x] Distributed execution (Redis queue + role-based workers)
-- [x] Voice-controlled IDE v1 (text_editor bridge, file creation)
-- [x] Interrupt-aware TTS (voice can be interrupted mid-sentence)
-- [ ] Dedicated React/Next.js GUI dashboard
-- [ ] Deep VS Code extension integration (LSP, git, debugger)
-- [ ] Wake-word always-on listening
-- [ ] Real-time multi-user collaboration
+VoiceOS ships with **bundled plugins** (browser, memory, code execution, messaging integrations, and more) under `plugins/`.
+
+**Skills** are reusable instruction packs under `skills/bundled/`. You can add your own under `workspace/skills/`.
+
+List extensions and where they run (host vs Docker):
+
+```bash
+voiceos-ecosystem list
+voiceos-ecosystem validate
+```
 
 ---
 
-## Documentation
+## Project layout (for contributors)
 
-| Document | Description |
-|---------|-------------|
-| [Setup Guide](docs/setup.md) | Installation, configuration, and troubleshooting |
-| [Architecture](docs/architecture.md) | System design, layers, and data flow |
-| [Agent System](docs/agents.md) | Core agents, dynamic roles, autonomous loop |
-| [Usage Guide](docs/usage.md) | Commands, workflows, and best practices |
-| [Tool API Reference](docs/tool_api.md) | Native tool classes and methods |
-| [API Reference](docs/api_reference.md) | Full module and class API |
-| [Memory Design](docs/memory_design.md) | Memory storage, retrieval, and management |
-| [Core Integration Systems](docs/core_integration_systems.md) | Plugins, helpers, extensions, dashboard |
-| [Docker Instructions](docker-instructions.md) | Full Docker/Compose setup guide |
+```
+project/
+├── main.py                 # Entry point
+├── voiceos_host/           # CLI commands (voiceos, voiceos-doctor, …)
+├── core/                   # Orchestrator, events, policy, session, doctor
+├── agents/                 # Planner, router, autonomous loop
+├── tools/                  # File, web, code, OS tools
+├── host_bridge/            # Optional OS automation HTTP bridge
+├── plugins/                # Bundled plugins
+├── skills/                 # Bundled skills
+├── config/                 # voiceos.yaml, OS capabilities, schemas
+├── scripts/                # Install and start scripts
+├── tests/                  # Automated tests
+└── docs/                   # User and contributor documentation
+```
+
+Technical deep dive: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ---
 
 ## Contributing
 
-Contributions are welcome. Please open an issue first to discuss significant changes.
+We welcome issues, documentation fixes, plugins, skills, and code improvements.
 
-```bash
-# Run tests
-python main.py --test
-python -m pytest tests/
-```
+1. Read [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)  
+2. Run `voiceos-doctor` and `python -m pytest tests/ -q` before opening a PR  
+3. Open an issue first for large changes  
+
+---
+
+## Documentation
+
+| Document | Audience |
+|----------|----------|
+| [Getting started](docs/GETTING_STARTED.md) | Step-by-step install (beginner-friendly) |
+| [Configuration](docs/CONFIGURATION.md) | All settings explained |
+| [Docker guide](docs/DOCKER.md) | Containers, workers, GPU |
+| [Architecture](docs/ARCHITECTURE.md) | How the system fits together |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common problems and fixes |
+| [Contributing](docs/CONTRIBUTING.md) | How to help build VoiceOS |
 
 ---
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License — see [LICENSE](LICENSE) if present in the repository, or the license field in `pyproject.toml`.
+
+---
+
+## Support
+
+- **Health check:** `voiceos-doctor`  
+- **Status:** `voiceos --status`  
+- **Logs:** `logs/voiceos.log` and `logs/audit.log`  
+- **Issues:** GitHub Issues on the project repository  
+
+**VoiceOS** — your voice, your machine, your rules.

@@ -36,16 +36,30 @@ os.environ.setdefault("VOICEOS_TOOL_PROFILE", "worker")
 
 
 class WorkerPermissionEngine(PermissionEngine):
-    """Workers auto-deny interactive prompts; audit only."""
+    """Workers auto-deny interactive prompts; enforce compute-only policy."""
+
+    def __init__(self, *args, policy_engine=None, **kwargs):
+        if policy_engine is None:
+            from core.policy.engine import PolicyEngine
+            policy_engine = PolicyEngine("unattended")
+        super().__init__(*args, policy_engine=policy_engine, **kwargs)
 
     async def prompt_for_approval(self, intent, tools, user_input, timeout=30.0) -> bool:
-        tools: list[str] = list(tools or [])
-        blocked: bool = any(t.startswith("os_") for t in tools) or intent in self.HIGH_INTENTS
+        tools = list(tools or [])
+        decision = self.policy.evaluate(intent, tools, surface="worker") if self.policy else None
+        approved = not (decision and (decision.auto_deny or decision.requires_approval))
+        if any(t.startswith("os_") for t in tools):
+            approved = False
         self.audit.record(
             "worker_permission_auto",
-            {"intent": intent, "tools": tools, "approved": not blocked},
+            {
+                "intent": intent,
+                "tools": tools,
+                "approved": approved,
+                "profile": self.policy.profile_name if self.policy else None,
+            },
         )
-        return not blocked
+        return approved
 
 
 async def process_task(
@@ -54,7 +68,12 @@ async def process_task(
     agent_llm,
     permission_engine,
 ) -> dict:
-    if await permission_engine.is_permission_required(envelope.intent, envelope.tools_required):
+    if envelope.task_kind == TaskEnvelope.TASK_KIND_CODE_EXEC:
+        return await _process_code_task(envelope, permission_engine)
+
+    if await permission_engine.is_permission_required(
+        envelope.intent, envelope.tools_required, plan_type=envelope.task_kind
+    ):
         allowed = await permission_engine.prompt_for_approval(
             envelope.intent, envelope.tools_required, envelope.goal, timeout=1.0
         )
@@ -88,6 +107,34 @@ async def process_task(
         {"task_id": envelope.task_id, "success": result.success},
     )
     return {"task_id": envelope.task_id, "role": envelope.role, "result": result}
+
+
+async def _process_code_task(envelope: TaskEnvelope, permission_engine) -> dict:
+    from core.sandbox.code_runner import run_code_in_sandbox
+
+    payload = envelope.payload or {}
+    code = payload.get("code") or envelope.goal
+    language = payload.get("language", "python")
+    task_id = payload.get("task_id") or envelope.task_id
+
+    permission_engine.audit.record(
+        "worker_code_exec_start",
+        {"task_id": envelope.task_id, "language": language},
+    )
+    try:
+        result = run_code_in_sandbox(code, language=language, task_id=task_id)
+        result["sandbox"] = "docker_worker"
+        permission_engine.audit.record(
+            "worker_code_exec_complete",
+            {"task_id": envelope.task_id, "success": result.get("success", False)},
+        )
+        return {"task_id": envelope.task_id, "role": "code_executor", "result": result}
+    except Exception as exc:
+        permission_engine.audit.record(
+            "worker_code_exec_failed",
+            {"task_id": envelope.task_id, "error": str(exc)},
+        )
+        return {"task_id": envelope.task_id, "role": "code_executor", "error": str(exc)}
 
 
 def _heartbeat_loop(registry: WorkerRegistry, worker_id: str, interval: float = 30.0, shutdown_event: "threading.Event" = None) -> None:
@@ -156,7 +203,7 @@ async def worker_loop(args) -> None:
                     registry.heartbeat(worker_id)
                     await asyncio.sleep(0.1)
                     continue
-                logger.info("Processing task %s role=%s", envelope.task_id, envelope.role)
+                logger.info("Processing task %s role=%s kind=%s", envelope.task_id, envelope.role, envelope.task_kind)
                 try:
                     result = await process_task(envelope, tool_executor, agent_llm, permission_engine)
                     queue.store_result(envelope.task_id, result)

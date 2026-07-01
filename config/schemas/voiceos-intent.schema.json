@@ -1,0 +1,401 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voiceos.dev/schemas/voiceos-intent.schema.json",
+  "title": "VoiceOS OS Intent",
+  "description": "Platform-neutral desktop automation intents for VoiceOS integrations.",
+  "type": "object",
+  "required": [
+    "intent"
+  ],
+  "properties": {
+    "intent": {
+      "type": "string",
+      "enum": [
+        "launch_app",
+        "focus_app",
+        "close_app",
+        "switch_window",
+        "close_window",
+        "input_text",
+        "press_key",
+        "click",
+        "scroll",
+        "copy",
+        "paste",
+        "set_clipboard",
+        "screenshot"
+      ],
+      "description": "OS-neutral intent name"
+    },
+    "params": {
+      "type": "object",
+      "description": "Intent-specific parameters",
+      "additionalProperties": true
+    },
+    "legacy_tool": {
+      "type": "string",
+      "description": "Optional legacy os_* tool alias",
+      "enum": [
+        "click_element",
+        "close_app",
+        "close_application",
+        "copy_text",
+        "focus_app",
+        "focus_application",
+        "open_app",
+        "open_application",
+        "os_click",
+        "os_close_app",
+        "os_copy",
+        "os_open_app",
+        "os_paste",
+        "os_screenshot",
+        "os_scroll",
+        "os_switch_window",
+        "os_type_text",
+        "paste_text",
+        "press_key",
+        "scroll",
+        "set_clipboard",
+        "switch_window",
+        "system_focus_app",
+        "system_open_app",
+        "take_screenshot",
+        "type_text"
+      ]
+    },
+    "via": {
+      "type": "string",
+      "enum": [
+        "local",
+        "host_bridge"
+      ],
+      "description": "Execution path on the host"
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "intent": {
+          "const": "launch_app"
+        }
+      }
+    },
+    {
+      "properties": {
+        "intent": {
+          "const": "focus_app"
+        }
+      }
+    },
+    {
+      "properties": {
+        "intent": {
+          "const": "close_app"
+        }
+      }
+    },
+    {
+      "properties": {
+        "intent": {
+          "const": "switch_window"
+        }
+      }
+    },
+    {
+      "properties": {
+        "intent": {
+          "const": "close_window"
+        }
+      }
+    },
+    {
+      "properties": {
+        "intent": {
+          "const": "input_text"
+        }
+      }
+    },
+    {
+      "properties": {
+        "intent": {
+          "const": "press_key"
+        }
+      }
+    },
+    {
+      "properties": {
+        "intent": {
+          "const": "click"
+        }
+      }
+    },
+    {
+      "properties": {
+        "intent": {
+          "const": "scroll"
+        }
+      }
+    },
+    {
+      "properties": {
+        "intent": {
+          "const": "copy"
+        }
+      }
+    },
+    {
+      "properties": {
+        "intent": {
+          "const": "paste"
+        }
+      }
+    },
+    {
+      "properties": {
+        "intent": {
+          "const": "set_clipboard"
+        }
+      }
+    },
+    {
+      "properties": {
+        "intent": {
+          "const": "screenshot"
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "intentParams": {
+      "launch_app": {
+        "type": "object",
+        "description": "OS intent: launch_app",
+        "properties": {
+          "app": {
+            "type": "string",
+            "description": "launch_app parameter"
+          },
+          "path": {
+            "type": "string",
+            "description": "launch_app parameter"
+          }
+        },
+        "additionalProperties": true
+      },
+      "focus_app": {
+        "type": "object",
+        "description": "OS intent: focus_app",
+        "properties": {
+          "app": {
+            "type": "string",
+            "description": "focus_app parameter"
+          },
+          "title": {
+            "type": "string",
+            "description": "focus_app parameter"
+          }
+        },
+        "additionalProperties": true
+      },
+      "close_app": {
+        "type": "object",
+        "description": "OS intent: close_app",
+        "properties": {
+          "app": {
+            "type": "string",
+            "description": "close_app parameter"
+          }
+        },
+        "additionalProperties": true
+      },
+      "switch_window": {
+        "type": "object",
+        "description": "OS intent: switch_window",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "description": "switch_window parameter"
+          },
+          "title": {
+            "type": "string",
+            "description": "switch_window parameter"
+          }
+        },
+        "additionalProperties": true
+      },
+      "close_window": {
+        "type": "object",
+        "description": "OS intent: close_window",
+        "properties": {},
+        "additionalProperties": true
+      },
+      "input_text": {
+        "type": "object",
+        "description": "OS intent: input_text",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "input_text parameter"
+          }
+        },
+        "additionalProperties": true
+      },
+      "press_key": {
+        "type": "object",
+        "description": "OS intent: press_key",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "press_key parameter"
+          }
+        },
+        "additionalProperties": true
+      },
+      "click": {
+        "type": "object",
+        "description": "OS intent: click",
+        "properties": {
+          "x": {
+            "type": "integer",
+            "description": "click parameter"
+          },
+          "y": {
+            "type": "integer",
+            "description": "click parameter"
+          }
+        },
+        "additionalProperties": true
+      },
+      "scroll": {
+        "type": "object",
+        "description": "OS intent: scroll",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "description": "scroll parameter"
+          },
+          "amount": {
+            "type": "integer",
+            "description": "scroll parameter"
+          }
+        },
+        "additionalProperties": true
+      },
+      "copy": {
+        "type": "object",
+        "description": "OS intent: copy",
+        "properties": {},
+        "additionalProperties": true
+      },
+      "paste": {
+        "type": "object",
+        "description": "OS intent: paste",
+        "properties": {},
+        "additionalProperties": true
+      },
+      "set_clipboard": {
+        "type": "object",
+        "description": "OS intent: set_clipboard",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "set_clipboard parameter"
+          }
+        },
+        "additionalProperties": true
+      },
+      "screenshot": {
+        "type": "object",
+        "description": "OS intent: screenshot",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "screenshot parameter"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "legacyToolMap": {
+      "click_element": {
+        "const": "click"
+      },
+      "close_app": {
+        "const": "close_app"
+      },
+      "close_application": {
+        "const": "close_app"
+      },
+      "copy_text": {
+        "const": "copy"
+      },
+      "focus_app": {
+        "const": "focus_app"
+      },
+      "focus_application": {
+        "const": "focus_app"
+      },
+      "open_app": {
+        "const": "launch_app"
+      },
+      "open_application": {
+        "const": "launch_app"
+      },
+      "os_click": {
+        "const": "click"
+      },
+      "os_close_app": {
+        "const": "close_app"
+      },
+      "os_copy": {
+        "const": "copy"
+      },
+      "os_open_app": {
+        "const": "launch_app"
+      },
+      "os_paste": {
+        "const": "paste"
+      },
+      "os_screenshot": {
+        "const": "screenshot"
+      },
+      "os_scroll": {
+        "const": "scroll"
+      },
+      "os_switch_window": {
+        "const": "switch_window"
+      },
+      "os_type_text": {
+        "const": "input_text"
+      },
+      "paste_text": {
+        "const": "paste"
+      },
+      "press_key": {
+        "const": "press_key"
+      },
+      "scroll": {
+        "const": "scroll"
+      },
+      "set_clipboard": {
+        "const": "set_clipboard"
+      },
+      "switch_window": {
+        "const": "switch_window"
+      },
+      "system_focus_app": {
+        "const": "focus_app"
+      },
+      "system_open_app": {
+        "const": "launch_app"
+      },
+      "take_screenshot": {
+        "const": "screenshot"
+      },
+      "type_text": {
+        "const": "input_text"
+      }
+    }
+  }
+}

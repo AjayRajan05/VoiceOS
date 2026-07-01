@@ -16,6 +16,8 @@ x-worker-env: &worker-env
   REDIS_URL: redis://voiceos-cache:6379/0
   LLM_ENDPOINT: http://voiceos-llm:11434
   VOICEOS_LLM_API_BASE: http://voiceos-llm:11434
+  VOICEOS_SANDBOX_PREFER_DOCKER: "true"
+  VOICEOS_WORKSPACE: /app/workspace
 
 services:
   # --- Profile: core (Redis + Postgres) ---
@@ -60,7 +62,9 @@ services:
       retries: 3
 
   # --- Profile: workers (agent sandbox, no OS tools) ---
+  # Set VOICEOS_WORKER_IMAGE to pull a prebuilt image instead of building locally.
   voiceos-worker:
+    image: ${VOICEOS_WORKER_IMAGE:-voiceos-worker:local}
     build:
       context: .
       dockerfile: Dockerfile.worker

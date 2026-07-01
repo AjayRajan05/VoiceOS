@@ -1,8 +1,0 @@
-name: _onboarding
-title: Onboarding Wizard
-description: Built-in onboarding wizard for configuring first-time models.
-version: 1.0.0
-settings_sections: []
-always_enabled: true
-per_project_config: false
-per_agent_config: false

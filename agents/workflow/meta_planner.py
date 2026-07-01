@@ -33,6 +33,64 @@ def _split_compound(user_input: str) -> Optional[List[str]]:
     return None
 
 
+def analyze_parallel(user_input: str) -> Optional[TaskPlan]:
+    """Detect parallel multi-agent requests (no dependencies between nodes)."""
+    lower = user_input.lower()
+    if "in parallel" not in lower and "parallel" not in lower:
+        return None
+
+    text = re.sub(r"\s+in parallel\.?$", "", user_input.strip(), flags=re.IGNORECASE)
+    parts = re.split(r"\s+and\s+", text, flags=re.IGNORECASE)
+    parts = [p.strip() for p in parts if p.strip()]
+    if len(parts) < 2:
+        return None
+
+    nodes = []
+    for i, part in enumerate(parts):
+        nodes.append({
+            "node_id": f"node_{i}",
+            "role": _infer_role(part),
+            "goal": part,
+            "depends_on": [],
+        })
+
+    logger.info("Meta-planner detected parallel workflow: %d tasks", len(nodes))
+    return TaskPlan(
+        type=TaskType.WORKFLOW,
+        intent="parallel_multi_agent_workflow",
+        confidence=0.8,
+        steps=[f"delegate_{n['role']}" for n in nodes],
+        tools_required=["delegate_task"],
+        role="workflow",
+        context={
+            "workflow_id": str(uuid.uuid4())[:8],
+            "workflow_nodes": nodes,
+            "parallel": True,
+            "meta_planned": True,
+        },
+    )
+
+
+def analyze_delegation(user_input: str) -> Optional[TaskPlan]:
+    """Detect explicit delegation requests."""
+    match = re.match(r"^delegate\s+(.+)$", user_input.strip(), flags=re.IGNORECASE)
+    if not match:
+        return None
+    goal = match.group(1).strip()
+    if not goal:
+        return None
+    role = _infer_role(goal)
+    return TaskPlan(
+        type=TaskType.DELEGATION,
+        intent="delegate_task",
+        confidence=0.85,
+        steps=["delegate_single"],
+        tools_required=["delegate_task"],
+        role=role,
+        context={"delegation_goal": goal, "delegation_role": role},
+    )
+
+
 def analyze_compound(user_input: str) -> Optional[TaskPlan]:
     """Return a workflow TaskPlan when input looks like a compound multi-step request."""
     parts = _split_compound(user_input)

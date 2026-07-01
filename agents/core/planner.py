@@ -16,6 +16,7 @@ class TaskType(Enum):
     COMPLEX = "complex"
     AUTONOMOUS = "autonomous"
     WORKFLOW = "workflow"
+    DELEGATION = "delegation"
 
 @dataclass
 class TaskPlan:
@@ -109,36 +110,53 @@ class Planner:
         """
         Analyze user input and generate execution plan
         """
-        user_input = user_input.strip().lower()
-        
-        # Compound multi-agent workflows (regex)
-        workflow_result = self._check_workflow_patterns(user_input)
-        if workflow_result:
-            return workflow_result
+        raw = user_input.strip()
+        normalized = raw.lower()
 
-        # Check for autonomous tasks before compound workflow heuristics
-        autonomous_result = self._check_autonomous_patterns(user_input)
-        if autonomous_result:
-            logger.info(f"Autonomous task detected: {autonomous_result.intent}")
-            return autonomous_result
-
-        # Meta-planner for broader compound phrases
         try:
-            from agents.workflow.meta_planner import analyze_compound
-            meta = analyze_compound(user_input)
+            from agents.workflow.meta_planner import (
+                analyze_compound,
+                analyze_delegation,
+                analyze_parallel,
+            )
+            parallel = analyze_parallel(raw)
+            if parallel:
+                return parallel
+            delegation = analyze_delegation(raw)
+            if delegation:
+                return delegation
+            autonomous_result = self._check_autonomous_patterns(normalized)
+            if autonomous_result:
+                logger.info(f"Autonomous task detected: {autonomous_result.intent}")
+                return autonomous_result
+            meta = analyze_compound(raw)
             if meta:
                 return meta
         except ImportError:
             pass
+
+        # Check for autonomous tasks (again for inputs not handled by meta planner)
+        autonomous_result = self._check_autonomous_patterns(normalized)
+        if autonomous_result:
+            logger.info(f"Autonomous task detected: {autonomous_result.intent}")
+            return autonomous_result
+
+        # Compound multi-agent workflows (regex)
+        workflow_result = self._check_workflow_patterns(normalized)
+        if workflow_result:
+            return workflow_result
+
+        # Check for autonomous tasks before compound workflow heuristics
+        # (primary autonomous routing happens earlier, before meta_planner)
         
         # Check for simple tasks next (for low latency)
-        simple_result = self._check_simple_patterns(user_input)
+        simple_result = self._check_simple_patterns(normalized)
         if simple_result:
             logger.info(f"Simple task detected: {simple_result.intent}")
             return simple_result
         
         # Check for complex tasks
-        complex_result = self._check_complex_patterns(user_input)
+        complex_result = self._check_complex_patterns(normalized)
         if complex_result:
             logger.info(f"Complex task detected: {complex_result.intent}, role: {complex_result.role}")
             return complex_result
@@ -151,7 +169,7 @@ class Planner:
             steps=["research_and_respond"],
             tools_required=[],
             role="researcher",
-            context={"original_input": user_input},
+            context={"original_input": raw},
         )
     
     def _check_workflow_patterns(self, user_input: str) -> Optional[TaskPlan]:
@@ -391,6 +409,9 @@ class Planner:
             return False
         
         if plan.type == TaskType.WORKFLOW and not plan.context.get("workflow_nodes"):
+            return False
+
+        if plan.type == TaskType.DELEGATION and not plan.context.get("delegation_goal"):
             return False
         
         if plan.confidence < 0.3:

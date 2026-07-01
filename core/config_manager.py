@@ -31,6 +31,15 @@ class DistributedConfig:
     queue_name: str = "voiceos_tasks"
     task_timeout: float = 120.0
     auto_detect_redis: bool = True
+    force_local_tools: List[str] = field(default_factory=list)
+
+
+@dataclass
+class SandboxConfig:
+    prefer_docker_workers: bool = True
+    code_exec_timeout: float = 60.0
+    worker_memory_mb: int = 2048
+    worker_cpu_limit: str = "2.0"
 
 @dataclass
 class DatabaseConfig:
@@ -73,6 +82,166 @@ class VoiceConfig:
     enable_backchannel: bool = True
     enable_interrupts: bool = True
     max_recording_duration: int = 30
+    hallucination_filter: bool = True
+    turn_policy: str = "interrupt"
+
+
+@dataclass
+class GuardrailsWarnAfterConfig:
+    exact_failure: int = 2
+    same_tool_failure: int = 3
+    idempotent_no_progress: int = 2
+
+
+@dataclass
+class GuardrailsHardStopAfterConfig:
+    exact_failure: int = 5
+    same_tool_failure: int = 8
+    idempotent_no_progress: int = 5
+
+
+@dataclass
+class GuardrailsConfig:
+    warnings_enabled: bool = True
+    hard_stop_enabled: bool = False
+    warn_after: GuardrailsWarnAfterConfig = field(default_factory=GuardrailsWarnAfterConfig)
+    hard_stop_after: GuardrailsHardStopAfterConfig = field(default_factory=GuardrailsHardStopAfterConfig)
+
+
+@dataclass
+class SessionConfig:
+    enabled: bool = False
+    path: str = "workspace/sessions"
+    fts_enabled: bool = True
+
+
+@dataclass
+class SessionShellConfigData:
+    enabled: bool = False
+    input_mode: str = "wake_word"
+    wake_phrases: list[str] = field(default_factory=lambda: ["hey voiceos", "voice os", "hey voice os"])
+    armed_timeout_s: float = 12.0
+    capability_greeting: bool = True
+    resume_on_start: bool = True
+    push_to_talk_key: str = "space"
+
+
+@dataclass
+class SkillsConfig:
+    enabled: bool = True
+    bundled_path: str = "skills/bundled"
+    user_path: str = "workspace/skills"
+    hub_enabled: bool = False
+    install_policy: str = "cautious"
+    auto_apply_mutations: bool = True
+
+
+@dataclass
+class DelegationConfig:
+    max_depth: int = 2
+    max_parallel: int = 5
+    max_iterations: int = 8
+    subagent_auto_approve: bool = False
+    blocked_tools: List[str] = field(
+        default_factory=lambda: [
+            "delegate_task",
+            "skills_list",
+            "skill_view",
+            "system_open_app",
+            "system_focus_app",
+        ]
+    )
+
+
+@dataclass
+class WebhookRouteConfig:
+    secret: str = ""
+    prompt_template: str = "Process this webhook payload:\n\n{body}"
+    deliver_only: bool = False
+
+
+@dataclass
+class TelegramPlatformConfig:
+    enabled: bool = False
+    bot_token: Optional[str] = None
+    allowed_chat_ids: List[str] = field(default_factory=list)
+    polling_interval: float = 1.0
+
+
+@dataclass
+class DiscordPlatformConfig:
+    enabled: bool = False
+    bot_token: Optional[str] = None
+    allowed_channel_ids: List[str] = field(default_factory=list)
+
+
+@dataclass
+class WhatsAppPlatformConfig:
+    enabled: bool = False
+    api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    phone_number_id: Optional[str] = None
+    polling_interval: float = 2.0
+
+
+@dataclass
+class SignalPlatformConfig:
+    enabled: bool = False
+    api_url: Optional[str] = None
+    phone_number: Optional[str] = None
+    allowed_numbers: List[str] = field(default_factory=list)
+    polling_interval: float = 2.0
+
+
+@dataclass
+class GatewayPlatformsConfig:
+    telegram: TelegramPlatformConfig = field(default_factory=TelegramPlatformConfig)
+    discord: DiscordPlatformConfig = field(default_factory=DiscordPlatformConfig)
+    whatsapp: WhatsAppPlatformConfig = field(default_factory=WhatsAppPlatformConfig)
+    signal: SignalPlatformConfig = field(default_factory=SignalPlatformConfig)
+
+
+@dataclass
+class GatewayConfig:
+    enabled: bool = False
+    host: str = "127.0.0.1"
+    port: int = 8765
+    api_key: Optional[str] = None
+    webhooks: Dict[str, WebhookRouteConfig] = field(default_factory=dict)
+    platforms: GatewayPlatformsConfig = field(default_factory=GatewayPlatformsConfig)
+
+
+@dataclass
+class SchedulerConfig:
+    enabled: bool = False
+    cron_path: str = "workspace/cron/jobs.yaml"
+
+
+@dataclass
+class MoaConfig:
+    enabled: bool = False
+    reference_models: List[str] = field(default_factory=list)
+    max_advisors: int = 3
+
+
+@dataclass
+class ExecutionConfig:
+    concurrent_tools: bool = True
+    max_parallel_tools: int = 5
+    result_spill_enabled: bool = True
+    default_result_size: int = 100_000
+    turn_budget: int = 200_000
+    preview_size: int = 1_500
+    spill_path: str = "workspace/tool-results"
+
+
+@dataclass
+class HooksConfig:
+    enabled: bool = True
+    plugins_path: str = "plugins"
+    user_hooks_path: str = "workspace/hooks"
+    shell_hooks_path: str = "workspace/hooks/shell"
+    shell_hooks_enabled: bool = True
 
 @dataclass
 class SecurityConfig:
@@ -81,6 +250,8 @@ class SecurityConfig:
     max_login_attempts: int = 3
     encryption_key: Optional[str] = None
     enable_audit_logging: bool = True
+    policy_profile: str = "personal"
+    snapshot_before_autonomous: bool = True
     allowed_hosts: List[str] = field(default_factory=lambda: ["localhost", "127.0.0.1"])
 
 @dataclass
@@ -116,6 +287,17 @@ class VoiceOSConfig:
     performance: PerformanceConfig = field(default_factory=PerformanceConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     distributed: DistributedConfig = field(default_factory=DistributedConfig)
+    sandbox: SandboxConfig = field(default_factory=SandboxConfig)
+    guardrails: GuardrailsConfig = field(default_factory=GuardrailsConfig)
+    session: SessionConfig = field(default_factory=SessionConfig)
+    session_shell: SessionShellConfigData = field(default_factory=SessionShellConfigData)
+    skills: SkillsConfig = field(default_factory=SkillsConfig)
+    delegation: DelegationConfig = field(default_factory=DelegationConfig)
+    gateway: GatewayConfig = field(default_factory=GatewayConfig)
+    execution: ExecutionConfig = field(default_factory=ExecutionConfig)
+    hooks: HooksConfig = field(default_factory=HooksConfig)
+    scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
+    moa: MoaConfig = field(default_factory=MoaConfig)
     
     # Paths
     models_path: str = "models"
@@ -235,6 +417,72 @@ class ConfigManager:
 
             if "distributed" in config_data:
                 self._update_dataclass(self.config.distributed, config_data["distributed"])
+
+            if "sandbox" in config_data:
+                self._update_dataclass(self.config.sandbox, config_data["sandbox"])
+
+            if "guardrails" in config_data:
+                self._update_nested_config(self.config.guardrails, config_data["guardrails"])
+
+            if "session" in config_data:
+                self._update_dataclass(self.config.session, config_data["session"])
+
+            if "session_shell" in config_data:
+                self._update_dataclass(self.config.session_shell, config_data["session_shell"])
+
+            if "skills" in config_data:
+                self._update_dataclass(self.config.skills, config_data["skills"])
+
+            if "delegation" in config_data:
+                self._update_dataclass(self.config.delegation, config_data["delegation"])
+
+            if "gateway" in config_data:
+                gw_data = config_data["gateway"]
+                self._update_dataclass(
+                    self.config.gateway,
+                    {k: v for k, v in gw_data.items() if k not in ("webhooks", "platforms")},
+                )
+                if "webhooks" in gw_data and isinstance(gw_data["webhooks"], dict):
+                    self.config.gateway.webhooks = {}
+                    for route_name, route_data in gw_data["webhooks"].items():
+                        route = WebhookRouteConfig()
+                        if isinstance(route_data, dict):
+                            self._update_dataclass(route, route_data)
+                        self.config.gateway.webhooks[route_name] = route
+                if "platforms" in gw_data and isinstance(gw_data["platforms"], dict):
+                    platforms = gw_data["platforms"]
+                    if "telegram" in platforms and isinstance(platforms["telegram"], dict):
+                        self._update_dataclass(
+                            self.config.gateway.platforms.telegram,
+                            platforms["telegram"],
+                        )
+                    if "discord" in platforms and isinstance(platforms["discord"], dict):
+                        self._update_dataclass(
+                            self.config.gateway.platforms.discord,
+                            platforms["discord"],
+                        )
+                    if "whatsapp" in platforms and isinstance(platforms["whatsapp"], dict):
+                        self._update_dataclass(
+                            self.config.gateway.platforms.whatsapp,
+                            platforms["whatsapp"],
+                        )
+                    if "signal" in platforms and isinstance(platforms["signal"], dict):
+                        self._update_dataclass(
+                            self.config.gateway.platforms.signal,
+                            platforms["signal"],
+                        )
+
+            if "scheduler" in config_data:
+                self._update_dataclass(self.config.scheduler, config_data["scheduler"])
+
+            if "moa" in config_data:
+                self._update_dataclass(self.config.moa, config_data["moa"])
+
+            if "execution" in config_data:
+                self._update_dataclass(self.config.execution, config_data["execution"])
+
+            if "hooks" in config_data:
+                self._update_dataclass(self.config.hooks, config_data["hooks"])
             
             # Update paths
             path_keys: List[str] = ["models_path", "workspace_path", "memory_path", "logs_path", "config_path"]
@@ -265,6 +513,17 @@ class ConfigManager:
         """
         for key, value in data.items():
             if hasattr(dataclass_instance, key):
+                setattr(dataclass_instance, key, value)
+
+    def _update_nested_config(self, dataclass_instance, data: Dict[str, Any]) -> None:
+        """Update dataclass and one level of nested dataclass fields."""
+        for key, value in data.items():
+            if not hasattr(dataclass_instance, key):
+                continue
+            current = getattr(dataclass_instance, key)
+            if isinstance(value, dict) and hasattr(current, "__dataclass_fields__"):
+                self._update_dataclass(current, value)
+            else:
                 setattr(dataclass_instance, key, value)
     
     def _create_default_config(self) -> None:

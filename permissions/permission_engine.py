@@ -42,19 +42,35 @@ class PermissionEngine:
         "edit_file", "multi_agent_workflow", "autonomous_build",
     })
 
-    def __init__(self, event_bus=None, safety_mode: str = "strict"):
+    def __init__(self, event_bus=None, safety_mode: str = "strict", policy_engine=None):
         self.event_bus = event_bus
         self.current_user_level = PermissionLevel.MEDIUM
         self.safety_mode = safety_mode
+        self.policy = policy_engine
         self.audit = AuditLog()
         
         if event_bus:
             event_bus.subscribe(Events.LLM_DECISION, self.check_permission)
 
-    async def is_permission_required(self, intent: str, tools: Iterable[str]) -> bool:
+    async def is_permission_required(
+        self,
+        intent: str,
+        tools: Iterable[str],
+        plan_type: str | None = None,
+    ) -> bool:
         if self.safety_mode == "permissive":
             return False
         tools = list(tools or [])
+        if self.policy:
+            from core.policy.surface import execution_surface
+
+            decision = self.policy.evaluate(
+                intent,
+                tools,
+                plan_type=plan_type,
+                surface=execution_surface(),
+            )
+            return decision.requires_approval
         for tool in tools:
             if tool in self.HIGH_TOOLS or tool.startswith("os_"):
                 return True
@@ -66,6 +82,16 @@ class PermissionEngine:
         self, intent: str, tools: Iterable[str], user_input: str, timeout: float = 30.0
     ) -> bool:
         tools = list(tools or [])
+        if self.policy:
+            from core.policy.surface import execution_surface
+
+            decision = self.policy.evaluate(intent, tools, surface=execution_surface())
+            if decision.auto_deny:
+                self.audit.record(
+                    "policy_auto_deny",
+                    {"intent": intent, "tools": tools, "reason": decision.reason, "profile": self.policy.profile_name},
+                )
+                return False
         from core.cli.console import VoiceConsole
 
         VoiceConsole.permission(f"Intent: {intent} | Tools: {', '.join(tools) or 'none'}")

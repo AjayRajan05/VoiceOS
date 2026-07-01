@@ -30,10 +30,11 @@ class DynamicAgent:
     created_at: str
 
 class AgentBuilder:
-    def __init__(self, tool_registry=None):
+    def __init__(self, tool_registry=None, skill_registry=None):
         self.roles_path = "agents/roles"
         self.prompt_loader = PromptLoader()
         self.tool_registry = tool_registry
+        self.skill_registry = skill_registry
         self._agent_cache = {}
         
     async def build_agent(self, role: str, intent: str, context: Dict[str, Any]) -> Optional[DynamicAgent]:
@@ -48,7 +49,7 @@ class AgentBuilder:
                 return None
             
             # Load system prompt
-            system_prompt = await self.prompt_loader.load_prompt(role)
+            system_prompt = await self.prompt_loader.load_prompt(role, self.skill_registry)
             if not system_prompt:
                 logger.error(f"No prompt found for role: {role}")
                 return None
@@ -196,14 +197,20 @@ class PromptLoader:
         self.roles_path = "agents/roles"
         self._prompt_cache = {}
     
-    async def load_prompt(self, role: str) -> Optional[str]:
+    async def load_prompt(self, role: str, skill_registry=None) -> Optional[str]:
         """
-        Load system prompt for the specified role
+        Load system prompt for the specified role (skill SKILL.md or prompt.txt).
         """
-        # Check cache first
-        if role in self._prompt_cache:
-            return self._prompt_cache[role]
-        
+        cache_key = f"{role}"
+        if cache_key in self._prompt_cache:
+            return self._prompt_cache[cache_key]
+
+        if skill_registry is not None:
+            skill_body = skill_registry.load_role_skill(role)
+            if skill_body:
+                self._prompt_cache[cache_key] = skill_body
+                return skill_body
+
         prompt_path = os.path.join(self.roles_path, role, "prompt.txt")
         
         try:

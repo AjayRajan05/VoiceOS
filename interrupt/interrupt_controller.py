@@ -1,14 +1,18 @@
 from core.events.events import Events
 from core.event import Event
+from interrupt.turn_policy import TurnPolicy, parse_turn_policy
 from listener.speech_activity import SpeechActivityDetector
 
 
 class InterruptController:
 
-    def __init__(self, event_bus, speech_state, tts_controller=None):
+    def __init__(self, event_bus, speech_state, tts_controller=None, turn_policy=None):
         self.bus = event_bus
         self.speech_state = speech_state
         self.tts_controller = tts_controller
+        self.turn_policy = turn_policy if turn_policy is not None else TurnPolicy.INTERRUPT
+        if isinstance(self.turn_policy, str):
+            self.turn_policy = parse_turn_policy(self.turn_policy)
         self.vad = SpeechActivityDetector()
         self._consecutive_speech = 0
         self._interrupt_published = False
@@ -25,7 +29,11 @@ class InterruptController:
         if speaking:
             self._consecutive_speech += 1
             self.speech_state.set_user_speaking(True)
-            if self.speech_state.is_assistant_speaking() and self._consecutive_speech >= 3:
+            if (
+                self.turn_policy == TurnPolicy.INTERRUPT
+                and self.speech_state.is_assistant_speaking()
+                and self._consecutive_speech >= 3
+            ):
                 if not self._interrupt_published:
                     self._interrupt_published = True
                     if self.tts_controller:

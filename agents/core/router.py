@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from agents.core.planner import TaskPlan, TaskType
 from agents.dynamic.agent_builder import AgentBuilder
 from agents.dynamic.agent_runner import AgentRunner
+from core.distributed.routing import should_offload_to_workers, task_queue_timeout
 from tools.tool_executor import ToolExecutor
 
 logger = logging.getLogger(__name__)
@@ -24,19 +25,23 @@ class RouteResult:
     error: Optional[str] = None
 
 class Router:
-    def __init__(self, tool_executor: ToolExecutor, agent_llm=None, memory_service=None):
+    def __init__(self, tool_executor: ToolExecutor, agent_llm=None, memory_service=None, guardrail_config=None, skill_registry=None):
         self.tool_executor = tool_executor
         self.agent_llm = agent_llm
         registry = tool_executor.registry
-        self.agent_builder = AgentBuilder(tool_registry=registry)
+        self.agent_builder = AgentBuilder(tool_registry=registry, skill_registry=skill_registry)
         self.agent_runner = AgentRunner(
-            tool_executor, agent_llm=agent_llm, memory_service=memory_service
+            tool_executor,
+            agent_llm=agent_llm,
+            memory_service=memory_service,
+            guardrail_config=guardrail_config,
         )
         
         # Route statistics
         self.route_stats = {
             'simple_tasks': 0,
             'complex_tasks': 0,
+            'queued_tasks': 0,
             'failed_routes': 0
         }
     
@@ -51,7 +56,12 @@ class Router:
         try:
             if session:
                 session.check_cancelled()
-            if plan.type == TaskType.SIMPLE:
+
+            if should_offload_to_workers(plan):
+                result = await self._route_queued_task(plan, user_input)
+                self.route_stats['queued_tasks'] += 1
+                execution_path = "queued_worker"
+            elif plan.type == TaskType.SIMPLE:
                 result = await self._route_simple_task(plan, user_input, session=session)
                 self.route_stats['simple_tasks'] += 1
                 execution_path = "direct_tool_execution"
@@ -112,12 +122,8 @@ class Router:
     
     async def _route_complex_task(self, plan: TaskPlan, user_input: str, session=None) -> Any:
         """
-        Route complex tasks to dynamic agent system or queued worker
+        Route complex tasks to dynamic agent system (local only when not offloaded).
         """
-        import os
-        if os.getenv("EXECUTION_MODE", "local") == "queued":
-            return await self._route_queued_task(plan, user_input)
-
         logger.info(f"Routing complex task: {plan.intent}, role: {plan.role}")
         
         agent = await self.agent_builder.build_agent(
@@ -139,21 +145,30 @@ class Router:
         return result
     
     async def _route_queued_task(self, plan: TaskPlan, user_input: str) -> Any:
-        import os
         import uuid
         from core.distributed.task_queue import RedisTaskQueue, TaskEnvelope
+
         queue = RedisTaskQueue()
         task_id = str(uuid.uuid4())[:8]
+        role = plan.role or ("autonomous" if plan.type == TaskType.AUTONOMOUS else "researcher")
+        logger.info(
+            "Enqueueing %s task %s role=%s intent=%s",
+            plan.type.value,
+            task_id,
+            role,
+            plan.intent,
+        )
         queue.enqueue(TaskEnvelope(
             task_id=task_id,
-            role=plan.role or "researcher",
+            role=role,
             goal=user_input,
             intent=plan.intent,
             tools_required=list(plan.tools_required or []),
         ))
-        result = queue.get_result(task_id, timeout=float(os.getenv("VOICEOS_TASK_TIMEOUT", "120")))
+        timeout = task_queue_timeout(plan)
+        result = queue.get_result(task_id, timeout=timeout)
         if result is None:
-            raise TimeoutError(f"Queued task {task_id} timed out")
+            raise TimeoutError(f"Queued task {task_id} timed out after {timeout}s")
         return result
     
     def _prepare_tool_params(self, plan: TaskPlan, user_input: str) -> Dict[str, Any]:
@@ -248,6 +263,7 @@ class Router:
         self.route_stats = {
             'simple_tasks': 0,
             'complex_tasks': 0,
+            'queued_tasks': 0,
             'failed_routes': 0
         }
     

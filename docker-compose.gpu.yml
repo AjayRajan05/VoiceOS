@@ -1,0 +1,17 @@
+# Optional GPU overrides for Ollama LLM (Linux + nvidia-container-toolkit)
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile llm up -d
+#
+# Requires: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
+
+version: '3.8'
+
+services:
+  voiceos-llm:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

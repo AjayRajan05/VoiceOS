@@ -1,9 +1,0 @@
-name: _a0_connector
-title: A0 Connector
-description: Current Agent Zero connector plugin for HTTP plus /ws integration, using session auth and handler activation through auth.handlers.
-version: "1.5"
-settings_sections:
-  - external
-  - developer
-per_project_config: false
-per_agent_config: false

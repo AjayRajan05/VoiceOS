@@ -24,13 +24,13 @@ def test_no_simulate_in_agent_llm():
     assert "_simulate_model_response" not in source
 
 
-@pytest.mark.asyncio
-async def test_complete_messages_mock_local(monkeypatch):
-    svc = LLMService(provider="local")
-
-    async def fake_stream(messages, role="general"):
+class _LocalLLMService(LLMService):
+    async def stream_messages(self, messages, role="general"):
         yield '{"action": "complete", "result": "ok"}'
 
-    monkeypatch.setattr(svc, "stream_messages", fake_stream)
+
+@pytest.mark.asyncio
+async def test_complete_messages_local_provider():
+    svc = _LocalLLMService(provider="local")
     out = await svc.complete_messages([{"role": "user", "content": "hi"}])
     assert "complete" in out

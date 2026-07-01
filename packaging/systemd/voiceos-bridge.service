@@ -1,0 +1,14 @@
+[Unit]
+Description=VoiceOS Host Bridge (OS automation IPC)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/VoiceOS/project
+ExecStart=%h/.local/bin/voiceos-bridge
+Restart=on-failure
+RestartSec=5
+Environment=VOICEOS_BRIDGE_MODE=auto
+
+[Install]
+WantedBy=default.target

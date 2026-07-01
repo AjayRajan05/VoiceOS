@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "voiceos-host"
+version = "1.0.0"
+description = "VoiceOS host control plane - voice, CLI, OS abstraction layer, and hybrid orchestration"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "VoiceOS" }]
+keywords = ["voice", "agents", "os-automation", "multi-agent"]
+dependencies = [
+  "colorama",
+  "faster-whisper",
+  "sounddevice",
+  "soundfile",
+  "numpy",
+  "pydantic",
+  "uvicorn",
+  "fastapi",
+  "sympy",
+  "requests",
+  "chardet",
+  "beautifulsoup4",
+  "readability-lxml",
+  "duckduckgo-search",
+  "pygetwindow",
+  "pyperclip",
+  "psutil",
+  "pynput",
+  "pyautogui",
+  "kokoro",
+  "pypdf2",
+  "redis",
+  "psycopg",
+  "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio", "pytest-cov"]
+
+[project.scripts]
+voiceos = "voiceos_host.cli:main"
+voiceos-doctor = "voiceos_host.doctor_cli:main"
+voiceos-compute = "voiceos_host.compute_cli:main"
+voiceos-bridge = "voiceos_host.bridge_cli:main"
+voiceos-shell = "voiceos_host.shell_cli:main"
+voiceos-audit-export = "voiceos_host.audit_cli:main"
+voiceos-ecosystem = "voiceos_host.ecosystem_cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["voiceos_host*", "host_bridge*"]

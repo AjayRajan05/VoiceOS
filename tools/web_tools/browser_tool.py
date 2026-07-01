@@ -20,6 +20,7 @@ from pathlib import Path
 import requests
 
 from core.config import config
+from core.security.url_safety import validate_url as security_validate_url
 from permissions.permission_engine import PermissionLevel, check_permission
 
 
@@ -72,6 +73,10 @@ class BrowserTool:
             ValueError: If URL is invalid, uses forbidden scheme, or points to blocked domain
         """
         try:
+            safety = security_validate_url(url, allow_private=False)
+            if not safety.get("valid"):
+                raise ValueError(safety.get("error", "URL not allowed"))
+
             parsed = urllib.parse.urlparse(url)
             
             # Check scheme

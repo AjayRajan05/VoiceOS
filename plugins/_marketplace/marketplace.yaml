@@ -8,9 +8,7 @@ featured:
     reason: Sandboxed code execution
   - key: _text_editor
     reason: File read/write/patch tools
-  - key: _office
-    reason: Document and office automation
 
 submit:
-  repository: https://github.com/agent0ai/a0-plugins
+  repository: https://github.com/your-org/voiceos-plugins
   instructions: Fork the repo, add your plugin to index.yaml, and open a pull request.

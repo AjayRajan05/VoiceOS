@@ -4,6 +4,7 @@ Provides tool discovery, loading, dependency management, and execution
 """
 
 import asyncio
+import functools
 import logging
 import importlib
 import inspect
@@ -41,6 +42,7 @@ class ToolMetadata:
     dependencies: List[str] = field(default_factory=list)
     parameters: Dict[str, Any] = field(default_factory=dict)
     safety_level: str = "medium"  # low, medium, high, critical
+    execution_surface: str = "either"  # host | worker | either
     async_execution: bool = False
     timeout: float = 30.0
     tags: List[str] = field(default_factory=list)
@@ -321,7 +323,8 @@ class ToolRegistry:
                     # Run sync tool in thread pool
                     loop = asyncio.get_event_loop()
                     result = await loop.run_in_executor(
-                        None, registration.instance.execute, **parameters
+                        None,
+                        functools.partial(registration.instance.execute, **parameters),
                     )
                 
                 # Update metrics
@@ -381,6 +384,14 @@ class ToolRegistry:
         Get tool registration by name
         """
         return self.tools.get(tool_name)
+
+    def get_max_result_size(self, name: str, default: int | float | None = None) -> int | float:
+        registration = self.tools.get(name)
+        if registration is not None:
+            size = getattr(registration.metadata, "max_result_size_chars", None)
+            if size is not None:
+                return size
+        return default if default is not None else 100_000
     
     def list_tools(self, category: ToolCategory = None, status: ToolStatus = None) -> List[str]:
         """

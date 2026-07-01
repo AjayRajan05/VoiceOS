@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from core.events.event_bus import EventBus
+from core.guardrails.tool_guardrails import ToolCallGuardrailConfig, ToolCallGuardrailController
 from permissions.permission_engine import PermissionEngine
 from tools.tool_executor import ToolExecutor
 from tools.tool_registry import ToolRegistry
@@ -26,8 +27,20 @@ class RuntimeContext:
     security: Any = None
     config: Any = None
     distributed_info: dict = field(default_factory=dict)
+    guardrail_config: Optional[ToolCallGuardrailConfig] = None
+    session_manager: Any = None
+    memory_lifecycle: Any = None
+    skill_registry: Any = None
+    delegate_runner: Any = None
+    hook_registry: Any = None
+    agent_bridge: Any = None
+    policy_engine: Any = None
+    ecosystem_registry: Any = None
 
     _active_session: Optional[Any] = field(default=None, repr=False)
+
+    def new_guardrail_controller(self) -> ToolCallGuardrailController:
+        return ToolCallGuardrailController(self.guardrail_config)
 
     def set_active_session(self, session) -> None:
         self._active_session = session

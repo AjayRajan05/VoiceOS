@@ -4,7 +4,7 @@ Generates Python tools for autonomous agents with sandboxing and safety validati
 """
 
 import asyncio
-from io import TextIOWrapper
+import json
 import logging
 import ast
 import re
@@ -351,7 +351,7 @@ def execute_tool(parameters: Dict[str, Any]) -> Dict[str, Any]:
         result = {{"status": "success", "message": "Tool executed successfully"}}
         return result
         
-    except Exception as e
+    except Exception as e:
         return {{"status": "error", "error": str(e)}}
 
 if __name__ == "__main__":
@@ -422,42 +422,42 @@ def scrape_url(url: str, selector: str = None) -> Dict[str, Any]:
             "status_code": response.status_code
         }
         
-    except requests.ConnectionError as e
+    except requests.ConnectionError as e:
         return {
             "status": "error",
             "error": "Connection failed",
             "error_type": "connection_error",
             "url": url
         }
-    except requests.Timeout as e
+    except requests.Timeout as e:
         return {
             "status": "error",
             "error": "Request timeout",
             "error_type": "timeout",
             "url": url
         }
-    except requests.HTTPError as e
+    except requests.HTTPError as e:
         return {
             "status": "error",
             "error": f"HTTP {e.response.status_code}",
             "error_type": "http_error",
             "url": url
         }
-    except requests.RequestException as e
+    except requests.RequestException as e:
         return {
             "status": "error",
             "error": str(e),
             "error_type": "request_error",
             "url": url
         }
-    except (AttributeError, ValueError) as e
+    except (AttributeError, ValueError) as e:
         return {
             "status": "error",
             "error": "Parsing failed",
             "error_type": "parsing_error",
             "url": url
         }
-    except Exception as e
+    except Exception as e:
         return {
             "status": "error",
             "error": str(e),
@@ -543,7 +543,7 @@ def analyze_data(data: List[Dict[str, Any]], analysis_type: str = "basic") -> Di
         
         return result
         
-    except Exception as e
+    except Exception as e:
         return {"status": "error", "error": str(e)}
 
 def execute_tool(parameters: Dict[str, Any]) -> Dict[str, Any]:
@@ -609,14 +609,15 @@ def process_files(directory: str, operation: str = "list") -> Dict[str, Any]:
             if filename:
                 file_path = dir_path / filename
                 if file_path.exists():
-                    with open(file_path, 'r', encoding='utf-8') as f
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
                     result["content"] = content
                 else:
                     result["error"] = f"File {filename} not found"
         
         return result
         
-    except Exception as e
+    except Exception as e:
         return {"status": "error", "error": str(e)}
 
 def execute_tool(parameters: Dict[str, Any]) -> Dict[str, Any]:
@@ -674,9 +675,9 @@ def call_api(url: str, method: str = "GET", headers: Dict[str, str] = None,
         
         try:
             result_data = response.json()
-        except (ValueError, requests.exceptions.JSONDecodeError) as e
+        except (ValueError, requests.exceptions.JSONDecodeError) as e:
             result_data = response.text
-        except Exception as e
+        except Exception as e:
             result_data = response.text
         
         return {
@@ -688,7 +689,7 @@ def call_api(url: str, method: str = "GET", headers: Dict[str, str] = None,
             "headers": dict(response.headers)
         }
         
-    except Exception as e
+    except Exception as e:
         return {"status": "error", "error": str(e), "url": url}
 
 def execute_tool(parameters: Dict[str, Any]) -> Dict[str, Any]:
@@ -756,7 +757,8 @@ def run_automation(steps: List[Dict[str, Any]]) -> Dict[str, Any]:
                     # Safe evaluation - only basic math
                     result = eval(expression, {"__builtins__": {}}, {})
                     results.append({"step": i, "type": "calculate", "expression": expression, "result": result})
-                except Exception as e
+                except Exception as e:
+                    results.append({"step": i, "type": "calculate", "error": str(e)})
             
             else:
                 results.append({"step": i, "type": step_type, "error": "Unknown step type"})
@@ -767,7 +769,7 @@ def run_automation(steps: List[Dict[str, Any]]) -> Dict[str, Any]:
             "results": results
         }
         
-    except Exception as e
+    except Exception as e:
         return {"status": "error", "error": str(e)}
 
 def execute_tool(parameters: Dict[str, Any]) -> Dict[str, Any]:

@@ -2,6 +2,11 @@ name: _browser
 title: Browser
 description: Built-in direct Playwright browser tool and WebUI viewer.
 version: 1.0.0
+execution_surface: host
+provides_tools:
+  - browser_navigate
+  - browser_snapshot
+  - browser_click
 always_enabled: false
 settings_sections:
   - external

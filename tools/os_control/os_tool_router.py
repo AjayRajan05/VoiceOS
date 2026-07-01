@@ -23,7 +23,11 @@ class OSToolRouter:
 
         if tool == "open_app":
             app = self._resolve_app(args.get("app") or args.get("target") or args.get("input", ""))
-            return self.app.open_app(app)
+            extra_args = []
+            file_path = args.get("file") or args.get("path")
+            if file_path:
+                extra_args.append(str(file_path))
+            return self.app.open_app(app, extra_args or None)
 
         if tool == "type_text":
             text = args.get("text") or args.get("target") or args.get("input", "")

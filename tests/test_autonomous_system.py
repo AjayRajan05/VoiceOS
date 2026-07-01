@@ -18,6 +18,7 @@ from agents.autonomous.tool_executor import AutonomousToolExecutor
 from agents.autonomous.agent_loop import AutonomousAgentLoop
 from agents.core.planner import Planner, TaskType
 from agents.core.safety import SafetyModule
+from core.events.event_bus import EventBus
 from permissions.permission_engine import PermissionEngine
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,8 @@ class TestAutonomousSystem:
         # Initialize components
         state_manager = AutonomousStateManager(temp_workspace)
         safety_module = SafetyModule()
-        permission_engine = PermissionEngine(None)  # Mock event bus
+        bus = EventBus()
+        permission_engine = PermissionEngine(bus, safety_mode="permissive")
         tool_generator = AutonomousToolGenerator(state_manager, safety_module, permission_engine)
         tool_executor = AutonomousToolExecutor(state_manager, safety_module, permission_engine)
         agent_loop = AutonomousAgentLoop(state_manager, tool_generator, tool_executor, safety_module, permission_engine)
@@ -213,7 +215,7 @@ def execute_tool(parameters):
     return {"status": "success"}
 '''
         
-        # Mock tool with dangerous code
+        # Generated tool with dangerous code
         from agents.autonomous.tool_generator import GeneratedTool
         dangerous_tool = GeneratedTool(
             tool_id="dangerous",

@@ -48,6 +48,7 @@ class LLMService:
             "analyst": {"temperature": 0.5, "max_tokens": 3072},
             "summarizer": {"temperature": 0.3, "max_tokens": 2048},
         }
+        self._transport = None
 
     @classmethod
     def from_voiceos_config(cls, llm_config) -> "LLMService":
@@ -107,6 +108,20 @@ class LLMService:
         base.update(self._role_overrides.get(role or "general", {}))
         return base
 
+    def _ensure_transport(self):
+        if self._transport is None:
+            from llm.transports.base import create_transport
+
+            transport_name = "openai" if self.provider == LLMProvider.API else "ollama"
+            self._transport = create_transport(
+                transport_name,
+                api_base=self.api_base,
+                model_name=self.model_name,
+                temperature=self.temperature,
+                timeout=self.timeout,
+            )
+        return self._transport
+
     async def stream_messages(
         self, messages: List[Dict[str, str]], role: str = "general"
     ) -> AsyncIterator[str]:
@@ -156,14 +171,17 @@ class LLMService:
             yield token
 
     async def _stream_api(self, messages: List[Dict[str, str]], params: Dict[str, Any]) -> AsyncIterator[str]:
-        base = self.api_base
-        if not base:
+        if not self.api_base:
             async for chunk in self._stream_local(messages, params):
                 yield chunk
             return
-        tokens = await asyncio.to_thread(self._collect_ollama_tokens, messages, params, base)
-        for token in tokens:
-            yield token
+        transport = self._ensure_transport()
+        async for chunk in transport.stream(
+            messages,
+            model=params.get("model_name", self.model_name),
+            temperature=params.get("temperature", self.temperature),
+        ):
+            yield chunk
 
     def _ollama_generate_url(self, base_url: str) -> str:
         url = base_url.rstrip("/")

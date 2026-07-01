@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 logger = logging.getLogger(__name__)
 
 @dataclass
-class TestResult:
+class FrameworkTestResult:
     name: str
     passed: bool
     duration: float
@@ -28,12 +28,12 @@ class TestResult:
     details: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
-class TestSuite:
+class FrameworkTestSuite:
     name: str
     tests: List[Callable] = field(default_factory=list)
     setup: Optional[Callable] = None
     teardown: Optional[Callable] = None
-    results: List[TestResult] = field(default_factory=list)
+    results: List[FrameworkTestResult] = field(default_factory=list)
 
 @dataclass
 class BenchmarkResult:
@@ -45,7 +45,7 @@ class BenchmarkResult:
 
 class VoiceOSTestFramework:
     def __init__(self):
-        self.test_suites: Dict[str, TestSuite] = {}
+        self.test_suites: Dict[str, FrameworkTestSuite] = {}
         self.benchmarks: Dict[str, List[BenchmarkResult]] = {}
         self.coverage_data: Dict[str, Any] = {}
         
@@ -68,7 +68,7 @@ class VoiceOSTestFramework:
             "average_duration": 0.0
         }
     
-    def register_test_suite(self, suite: TestSuite):
+    def register_test_suite(self, suite: FrameworkTestSuite):
         """
         Register a test suite
         """
@@ -76,11 +76,11 @@ class VoiceOSTestFramework:
         logger.info(f"Registered test suite: {suite.name}")
     
     def create_test_suite(self, name: str, setup_func: Callable = None, 
-                         teardown_func: Callable = None) -> TestSuite:
+                         teardown_func: Callable = None) -> FrameworkTestSuite:
         """
         Create and register a new test suite
         """
-        suite = TestSuite(name=name, setup=setup_func, teardown=teardown_func)
+        suite = FrameworkTestSuite(name=name, setup=setup_func, teardown=teardown_func)
         self.register_test_suite(suite)
         return suite
     
@@ -94,7 +94,7 @@ class VoiceOSTestFramework:
         self.test_suites[suite_name].tests.append(test_func)
         logger.info(f"Added test to suite {suite_name}: {test_func.__name__}")
     
-    async def run_test_suite(self, suite_name: str) -> List[TestResult]:
+    async def run_test_suite(self, suite_name: str) -> List[FrameworkTestResult]:
         """
         Run a specific test suite
         """
@@ -125,7 +125,7 @@ class VoiceOSTestFramework:
             
         except Exception as e:
             logger.error(f"Test suite {suite_name} failed: {e}")
-            results.append(TestResult(
+            results.append(FrameworkTestResult(
                 name=f"suite_{suite_name}",
                 passed=False,
                 duration=0.0,
@@ -134,7 +134,7 @@ class VoiceOSTestFramework:
         
         return results
     
-    async def _run_tests_sequential(self, tests: List[Callable]) -> List[TestResult]:
+    async def _run_tests_sequential(self, tests: List[Callable]) -> List[FrameworkTestResult]:
         """
         Run tests sequentially
         """
@@ -154,7 +154,7 @@ class VoiceOSTestFramework:
         
         return results
     
-    async def _run_tests_parallel(self, tests: List[Callable]) -> List[TestResult]:
+    async def _run_tests_parallel(self, tests: List[Callable]) -> List[FrameworkTestResult]:
         """
         Run tests in parallel
         """
@@ -165,7 +165,7 @@ class VoiceOSTestFramework:
         processed_results = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                processed_results.append(TestResult(
+                processed_results.append(FrameworkTestResult(
                     name=tests[i].__name__,
                     passed=False,
                     duration=0.0,
@@ -177,7 +177,7 @@ class VoiceOSTestFramework:
         
         return processed_results
     
-    async def _run_single_test(self, test_func: Callable) -> TestResult:
+    async def _run_single_test(self, test_func: Callable) -> FrameworkTestResult:
         """
         Run a single test
         """
@@ -193,7 +193,7 @@ class VoiceOSTestFramework:
                 
                 duration = time.time() - start_time
                 
-                return TestResult(
+                return FrameworkTestResult(
                     name=test_func.__name__,
                     passed=True,
                     duration=duration,
@@ -203,7 +203,7 @@ class VoiceOSTestFramework:
             except asyncio.TimeoutError:
                 error = f"Test timed out after {self.config['timeout']}s"
                 if attempt == self.config["max_retries"]:
-                    return TestResult(
+                    return FrameworkTestResult(
                         name=test_func.__name__,
                         passed=False,
                         duration=time.time() - start_time,
@@ -213,7 +213,7 @@ class VoiceOSTestFramework:
             except Exception as e:
                 error = str(e)
                 if attempt == self.config["max_retries"]:
-                    return TestResult(
+                    return FrameworkTestResult(
                         name=test_func.__name__,
                         passed=False,
                         duration=time.time() - start_time,
@@ -224,14 +224,14 @@ class VoiceOSTestFramework:
             await asyncio.sleep(0.1 * (attempt + 1))
         
         # Should not reach here
-        return TestResult(
+        return FrameworkTestResult(
             name=test_func.__name__,
             passed=False,
             duration=time.time() - start_time,
             error="Unknown error"
         )
     
-    def _update_stats(self, result: TestResult):
+    def _update_stats(self, result: FrameworkTestResult):
         """
         Update test statistics
         """
@@ -247,7 +247,7 @@ class VoiceOSTestFramework:
             self.stats["total_duration"] / self.stats["total_tests"]
         )
     
-    async def run_all_tests(self) -> Dict[str, List[TestResult]]:
+    async def run_all_tests(self) -> Dict[str, List[FrameworkTestResult]]:
         """
         Run all registered test suites
         """
@@ -319,7 +319,7 @@ class VoiceOSTestFramework:
         
         return result
     
-    def generate_test_report(self, results: Dict[str, List[TestResult]]) -> str:
+    def generate_test_report(self, results: Dict[str, List[FrameworkTestResult]]) -> str:
         """
         Generate comprehensive test report
         """
@@ -373,7 +373,7 @@ class VoiceOSTestFramework:
         
         return "\n".join(report)
     
-    def save_test_report(self, results: Dict[str, List[TestResult]], file_path: str):
+    def save_test_report(self, results: Dict[str, List[FrameworkTestResult]], file_path: str):
         """
         Save test report to file
         """

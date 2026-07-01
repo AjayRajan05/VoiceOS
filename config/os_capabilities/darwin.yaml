@@ -1,0 +1,45 @@
+platform: darwin
+display_name: macOS
+intents:
+  launch_app:
+    supported: true
+    permission: medium
+  focus_app:
+    supported: true
+    permission: medium
+  close_app:
+    supported: true
+    permission: medium
+  switch_window:
+    supported: true
+    permission: low
+  close_window:
+    supported: true
+    permission: medium
+  input_text:
+    supported: true
+    permission: medium
+  press_key:
+    supported: true
+    permission: medium
+  click:
+    supported: true
+    permission: medium
+  scroll:
+    supported: true
+    permission: low
+  copy:
+    supported: true
+    permission: low
+  paste:
+    supported: true
+    permission: medium
+  set_clipboard:
+    supported: true
+    permission: low
+  screenshot:
+    supported: true
+    permission: medium
+notes:
+  - Focus uses AppleScript via osascript.
+  - Enable Accessibility for VoiceOS in System Settings if automation fails.

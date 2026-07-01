@@ -1,0 +1,45 @@
+platform: linux
+display_name: Linux
+intents:
+  launch_app:
+    supported: true
+    permission: medium
+  focus_app:
+    supported: true
+    permission: medium
+    requires: [wmctrl, xdotool]
+  close_app:
+    supported: true
+    permission: medium
+  switch_window:
+    supported: true
+    permission: low
+  close_window:
+    supported: true
+    permission: medium
+  input_text:
+    supported: true
+    permission: medium
+  press_key:
+    supported: true
+    permission: medium
+  click:
+    supported: true
+    permission: medium
+  scroll:
+    supported: true
+    permission: low
+  copy:
+    supported: true
+    permission: low
+  paste:
+    supported: true
+    permission: medium
+  set_clipboard:
+    supported: true
+    permission: low
+  screenshot:
+    supported: true
+    permission: medium
+notes:
+  - Install wmctrl or xdotool for reliable window focus on X11/Wayland.

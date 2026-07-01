@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 
 
 class TaskEnvelope:
+    TASK_KIND_AGENT = "agent"
+    TASK_KIND_CODE_EXEC = "code_exec"
+
     def __init__(
         self,
         task_id: str,
@@ -21,6 +24,8 @@ class TaskEnvelope:
         status: str = "pending",
         intent: str = "",
         tools_required: Optional[list] = None,
+        task_kind: str = TASK_KIND_AGENT,
+        payload: Optional[Dict[str, Any]] = None,
     ):
         self.task_id = task_id
         self.role = role
@@ -30,6 +35,8 @@ class TaskEnvelope:
         self.status = status
         self.intent = intent
         self.tools_required = tools_required or []
+        self.task_kind = task_kind or self.TASK_KIND_AGENT
+        self.payload = payload or {}
 
     def to_json(self) -> str:
         return json.dumps({
@@ -41,6 +48,8 @@ class TaskEnvelope:
             "status": self.status,
             "intent": self.intent,
             "tools_required": self.tools_required,
+            "task_kind": self.task_kind,
+            "payload": self.payload,
             "created_at": time.time(),
         })
 
@@ -56,6 +65,8 @@ class TaskEnvelope:
             status=obj.get("status", "pending"),
             intent=obj.get("intent", ""),
             tools_required=obj.get("tools_required", []),
+            task_kind=obj.get("task_kind", cls.TASK_KIND_AGENT),
+            payload=obj.get("payload", {}),
         )
 
 

@@ -14,7 +14,8 @@ enable_tool_registry: true
 enable_event_handlers: true
 enable_safety_checks: true
 
-execution_mode: local
+# auto → Docker workers when Redis is up; local fallback otherwise
+execution_mode: auto
 
 llm:
   provider: api
@@ -39,10 +40,122 @@ voice:
   enable_interrupts: true
   max_recording_duration: 30
   tts_engine: auto
+  hallucination_filter: true
+  turn_policy: interrupt
+
+guardrails:
+  warnings_enabled: true
+  hard_stop_enabled: false
+  warn_after:
+    exact_failure: 2
+    same_tool_failure: 3
+    idempotent_no_progress: 2
+  hard_stop_after:
+    exact_failure: 5
+    same_tool_failure: 8
+    idempotent_no_progress: 5
+
+session:
+  enabled: true
+  path: workspace/sessions
+  fts_enabled: true
+
+session_shell:
+  enabled: false
+  input_mode: wake_word
+  wake_phrases:
+    - hey voiceos
+    - voice os
+    - hey voice os
+  armed_timeout_s: 12
+  capability_greeting: true
+  resume_on_start: true
+  push_to_talk_key: space
+
+skills:
+  enabled: true
+  bundled_path: skills/bundled
+  user_path: workspace/skills
+  hub_enabled: false
+  install_policy: cautious  # safe | cautious | dangerous
+  auto_apply_mutations: true
+
+delegation:
+  max_depth: 2
+  max_parallel: 5
+  max_iterations: 8
+  subagent_auto_approve: false
+  blocked_tools:
+    - delegate_task
+    - send_message
+    - skills_list
+    - skill_view
+    - system_open_app
+    - system_focus_app
+
+gateway:
+  enabled: false
+  host: 127.0.0.1
+  port: 8765
+  api_key: null
+  webhooks: {}
+  platforms:
+    telegram:
+      enabled: false
+      bot_token: null
+      allowed_chat_ids: []
+      polling_interval: 1.0
+    discord:
+      enabled: false
+      bot_token: null
+      allowed_channel_ids: []
+    whatsapp:
+      enabled: false
+      api_url: null
+      api_key: null
+      phone_number_id: null
+      polling_interval: 2.0
+    signal:
+      enabled: false
+      api_url: null
+      phone_number: null
+      allowed_numbers: []
+      polling_interval: 2.0
+
+scheduler:
+  enabled: false
+  cron_path: workspace/cron/jobs.yaml
+
+moa:
+  enabled: false
+  reference_models: []
+  max_advisors: 3
+
+execution:
+  concurrent_tools: true
+  max_parallel_tools: 5
+  result_spill_enabled: true
+  default_result_size: 100000
+  turn_budget: 200000
+  preview_size: 1500
+  spill_path: workspace/tool-results
+
+hooks:
+  enabled: true
+  plugins_path: plugins
+  user_hooks_path: workspace/hooks
+  shell_hooks_path: workspace/hooks/shell
+  shell_hooks_enabled: true
+
+ecosystem:
+  enabled: true
+  validate_manifests: true
 
 security:
   enable_authentication: false
   enable_audit_logging: true
+  policy_profile: personal
+  snapshot_before_autonomous: true
   allowed_hosts:
     - localhost
     - 127.0.0.1
@@ -63,3 +176,11 @@ distributed:
   queue_name: voiceos_tasks
   task_timeout: 120.0
   auto_detect_redis: true
+  # Host-only tools (OS/desktop) never leave the host even when workers are up
+  force_local_tools: []
+
+sandbox:
+  prefer_docker_workers: true
+  code_exec_timeout: 60.0
+  worker_memory_mb: 2048
+  worker_cpu_limit: "2.0"

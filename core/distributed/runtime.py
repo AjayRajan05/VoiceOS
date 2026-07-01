@@ -4,9 +4,28 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+HYBRID_START_HINT_WINDOWS = r".\scripts\start_hybrid.ps1"
+HYBRID_START_HINT_UNIX = "./scripts/start_hybrid.sh"
+HYBRID_DOCKER_MANUAL = "docker compose --profile core --profile workers up -d --scale voiceos-worker=2"
+
+
+def _docker_daemon_available() -> bool:
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["docker", "info"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return False
 
 
 def redis_available(redis_url: str, timeout: float = 1.0) -> bool:
@@ -51,6 +70,61 @@ def resolve_execution_mode(
     return "local"
 
 
+def _count_registered_workers(redis_url: str) -> int:
+    try:
+        from core.distributed.worker_registry import WorkerRegistry
+
+        return len(WorkerRegistry(redis_url=redis_url).list_workers())
+    except Exception as exc:
+        logger.debug("Worker count unavailable: %s", exc)
+        return 0
+
+
+def get_startup_advisory(summary: Dict[str, Any]) -> List[str]:
+    """
+    Human-readable startup hints when distributed runtime is degraded or ready.
+
+    Used by main.py to tell users whether heavy work runs in Docker or on-host CPU.
+    """
+    lines: List[str] = []
+    requested = (summary.get("requested_mode") or "local").lower()
+    resolved = (summary.get("execution_mode") or "local").lower()
+    redis_up = bool(summary.get("redis_available"))
+    worker_count = int(summary.get("worker_count") or 0)
+
+    if requested in ("auto", "queued") and resolved == "local":
+        lines.append("Heavy tasks will run on this machine - Docker workers are not available.")
+        if os.name == "nt":
+            lines.append(f"Start the hybrid stack: {HYBRID_START_HINT_WINDOWS}")
+        else:
+            lines.append(f"Start the hybrid stack: {HYBRID_START_HINT_UNIX}")
+        lines.append(f"Or manually: {HYBRID_DOCKER_MANUAL}")
+        return lines
+
+    if resolved == "queued":
+        if redis_up and worker_count == 0:
+            lines.append(
+                "Redis is up but no workers are registered yet. "
+                f"Start workers: {HYBRID_DOCKER_MANUAL}"
+            )
+        elif worker_count > 0:
+            lines.append(
+                f"Heavy tasks will run in Docker workers ({worker_count} online)."
+            )
+
+    tier = summary.get("degradation_tier")
+    if tier and tier != "full_hybrid":
+        try:
+            from core.doctor.degradation import DegradationTier, TIER_LABELS
+
+            enum_tier = DegradationTier(tier)
+            lines.append(f"Runtime tier: {TIER_LABELS[enum_tier]}")
+            lines.append("Run: python main.py --doctor  for a full health report")
+        except ValueError:
+            pass
+    return lines
+
+
 def configure_distributed_runtime(config) -> Dict[str, Any]:
     """
     Apply distributed settings from config + environment.
@@ -72,11 +146,27 @@ def configure_distributed_runtime(config) -> Dict[str, Any]:
         os.environ.setdefault("VOICEOS_LLM_API_BASE", config.llm.api_base)
 
     tool_profile = os.getenv("VOICEOS_TOOL_PROFILE", "host")
+    workers_online = _count_registered_workers(redis_url) if resolved == "queued" else 0
+    docker_up = _docker_daemon_available()
+    try:
+        from core.doctor.degradation import resolve_degradation_tier
+
+        degradation_tier = resolve_degradation_tier(
+            docker_available=docker_up,
+            redis_available=redis_available(redis_url),
+            worker_count=workers_online if resolved == "queued" else _count_registered_workers(redis_url),
+        ).value
+    except Exception:
+        degradation_tier = "local_only"
+
     summary = {
         "requested_mode": requested,
         "execution_mode": resolved,
         "redis_url": redis_url,
         "redis_available": redis_available(redis_url),
+        "docker_available": docker_up,
+        "worker_count": workers_online,
+        "degradation_tier": degradation_tier,
         "tool_profile": tool_profile,
         "llm_provider": getattr(config.llm, "provider", "local"),
         "llm_api_base": getattr(config.llm, "api_base", None),

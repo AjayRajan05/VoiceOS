@@ -240,9 +240,7 @@ class SandboxEnvironment:
     
     async def _run_isolated_code(self, code: str, workspace: Path, 
                                 memory_limit: int, timeout: int) -> Any:
-        """Run code in isolated environment"""
-        # This would implement actual sandboxing
-        # For now, simulate with basic validation
+        """Run code in an isolated restricted scope."""
         if "import" in code or "exec(" in code or "eval(" in code:
             raise SecurityError("Direct imports or execution not allowed in sandbox")
         

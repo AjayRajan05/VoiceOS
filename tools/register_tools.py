@@ -6,7 +6,6 @@ from typing import Callable, Optional
 from tools.tool_registry import ToolRegistry, ToolConfig, ToolMetadata, ToolCategory
 from tools.voiceos_tools_integration import initialize_voiceos_tools_integration
 from tools.agent_tools.register_agent_tools import register_agent_tools
-from tools.os_control.os_tool_router import OSToolRouter
 
 
 def _tool_profile(explicit: Optional[str] = None) -> str:
@@ -78,39 +77,37 @@ def _register_legacy_tools(registry: ToolRegistry) -> None:
 
 
 def _register_os_tools(registry: ToolRegistry, system_integration=None) -> None:
-    router = OSToolRouter(system_integration=system_integration)
+    from core.os_layer.executor import OSIntentExecutor
+    from core.os_layer.intent import OSIntentError, OSIntentNotSupported
+
+    executor = OSIntentExecutor(system_integration=system_integration)
 
     class OSToolWrapper:
         TOOL_METADATA = ToolMetadata(
             name="os_tools",
-            description="Operating system control tools",
+            description="Operating system control via OS abstraction layer",
             category=ToolCategory.OS_CONTROL,
             version="1.0.0",
             author="VoiceOS",
             safety_level="high",
             async_execution=False,
-            tags=["os"],
+            tags=["os", "oal"],
         )
 
         def __init__(self):
-            self._router = router
+            self._executor = executor
 
         def execute(self, method_name: str = "open_app", **kwargs):
-            tool_map = {
-                "os_open_app": "open_app",
-                "os_type_text": "type_text",
-                "os_switch_window": "switch_window",
-                "os_close_app": "close_app",
-                "os_click": "click",
-                "os_scroll": "scroll",
-                "os_copy": "copy",
-                "os_paste": "paste",
-                "os_screenshot": "screenshot",
-                "open_app": "open_app",
-                "type_text": "type_text",
-            }
-            tool = tool_map.get(method_name, method_name.replace("os_", ""))
-            return self._router.execute(tool, kwargs)
+            tool_name = method_name or self.TOOL_METADATA.name
+            try:
+                result = self._executor.execute_tool(tool_name, kwargs)
+            except OSIntentNotSupported as exc:
+                return {"success": False, "error": str(exc), "intent": tool_name}
+            except OSIntentError as exc:
+                return {"success": False, "error": str(exc), "intent": tool_name}
+            if isinstance(result, dict) and result.get("success", True):
+                return result.get("message", result)
+            return result
 
     for os_name in (
         "os_open_app", "os_type_text", "os_switch_window", "os_close_app",
@@ -126,7 +123,7 @@ def _register_os_tools(registry: ToolRegistry, system_integration=None) -> None:
                 author="VoiceOS",
                 safety_level="high",
                 async_execution=False,
-                tags=["os"],
+                tags=["os", "oal"],
             )
 
             def execute(self, method_name: str = None, **kwargs):
@@ -220,6 +217,11 @@ def register_tools(
     # worker profile: file/web/code tools only — no OS, IDE, or desktop automation
 
     register_marketplace_tools(registry)
+    try:
+        from tools.skills_tools import register_skills_tools
+        register_skills_tools(registry)
+    except ImportError:
+        pass
     return registry
 
 

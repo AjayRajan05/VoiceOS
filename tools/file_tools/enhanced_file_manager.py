@@ -1,6 +1,6 @@
 """
 Enhanced File Manager - Safe workspace file operations for VoiceOS
-Maintains VoiceOS security boundaries while leveraging imported capabilities
+Maintains VoiceOS security boundaries for file operations.
 """
 
 import os
@@ -23,7 +23,9 @@ Classes:
 import os
 
 from core.config import config
+from core.security.path_security import resolve_safe_path, validate_path
 from permissions.permission_engine import PermissionLevel, check_permission
+from tools.user_paths import is_under_desktop, user_desktop
 from tools.workspace_paths import resolve_within_workspace, assert_within_workspace
 
 
@@ -68,6 +70,17 @@ class EnhancedFileManager:
             ValueError: If path is invalid or malformed
         """
         try:
+            candidate = Path(path)
+            if candidate.is_absolute():
+                resolved_abs = candidate.resolve()
+                if is_under_desktop(resolved_abs):
+                    return resolved_abs
+            resolved = resolve_safe_path(path, str(self.workspace_root))
+            if resolved is not None:
+                return resolved
+            security = validate_path(path, base_path=str(self.workspace_root))
+            if not security.get("valid"):
+                raise PermissionError(security.get("error", "Path not allowed"))
             resolved_path = resolve_within_workspace(self.workspace_root, path)
             assert_within_workspace(self.workspace_root, resolved_path)
             return resolved_path

@@ -46,11 +46,21 @@ class VoicePipeline:
         self._running = True
         self._loop = asyncio.get_event_loop()
         try:
-            from audio.streaming_stt import StreamingSTT
+            from stt.registry import create_stt
+
             stt_model = config.whisper_model
+            stt_provider = "whisper"
+            hallucination_filter = True
             if self.voice_config is not None:
                 stt_model = getattr(self.voice_config, "stt_model", stt_model)
-            self._stt = StreamingSTT(self.event_bus, model_name=stt_model)
+                stt_provider = getattr(self.voice_config, "stt_provider", stt_provider)
+                hallucination_filter = getattr(self.voice_config, "hallucination_filter", True)
+            self._stt = create_stt(
+                stt_provider,
+                event_bus=self.event_bus,
+                model_name=stt_model,
+                hallucination_filter=hallucination_filter,
+            )
         except Exception as e:
             logger.warning("STT unavailable: %s", e)
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)

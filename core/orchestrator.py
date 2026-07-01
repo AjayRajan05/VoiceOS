@@ -20,6 +20,9 @@ from core.events.events import Events
 from core.event import Event
 from core.runtime.session import ExecutionSession
 from core.runtime.execution_wrapper import ExecutionWrapper
+from core.hooks.invoke import invoke_hook_async, apply_transform_llm_output_async
+from interrupt.turn_policy import TurnPolicy, parse_turn_policy
+from interrupt.thread_interrupt import clear_interrupt
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -31,6 +34,7 @@ class OrchestratorConfig:
     enable_workspace_isolation: bool = True
     enable_agent_memory: bool = True
     safety_mode: str = "strict"
+    turn_policy: str = "interrupt"
 
 
 class Orchestrator:
@@ -47,6 +51,8 @@ class Orchestrator:
         self.tool_executor: ToolExecutor = tool_executor
         self.permission_engine: PermissionEngine = permission_engine
         self.config: OrchestratorConfig = config or OrchestratorConfig()
+        self.turn_policy = parse_turn_policy(self.config.turn_policy)
+        self._input_queue: asyncio.Queue[str] = asyncio.Queue()
         self.agent_llm = agent_llm
         self.runtime_context = runtime_context
 
@@ -57,6 +63,15 @@ class Orchestrator:
                 self.agent_llm = runtime_context.agent_llm
 
         self.memory = memory_service
+        self.session_manager = None
+        self.memory_lifecycle = None
+        self.skill_registry = None
+        self.delegate_runner = None
+        if runtime_context is not None:
+            self.session_manager = getattr(runtime_context, "session_manager", None)
+            self.memory_lifecycle = getattr(runtime_context, "memory_lifecycle", None)
+            self.skill_registry = getattr(runtime_context, "skill_registry", None)
+            self.delegate_runner = getattr(runtime_context, "delegate_runner", None)
         if self.memory is None and self.config.enable_agent_memory:
             try:
                 from memory.memory_service import MemoryService
@@ -67,10 +82,17 @@ class Orchestrator:
                 logger.debug(f"Failed to initialize MemoryService: {e}")
 
         self.planner = Planner()
+        guardrail_config = None
+        skill_registry = None
+        if runtime_context is not None:
+            guardrail_config = getattr(runtime_context, "guardrail_config", None)
+            skill_registry = getattr(runtime_context, "skill_registry", None)
         self.router = Router(
             tool_executor,
             agent_llm=self.agent_llm,
             memory_service=self.memory,
+            guardrail_config=guardrail_config,
+            skill_registry=skill_registry,
         )
 
         self._execution_wrapper = None
@@ -98,7 +120,7 @@ class Orchestrator:
         self._setup_event_handlers()
 
     def _setup_event_handlers(self) -> None:
-        self.event_bus.subscribe(Events.SPEECH_TRANSCRIBED, self._handle_speech_input)
+        self.event_bus.subscribe(Events.USER_MESSAGE, self._handle_user_input)
         self.event_bus.subscribe(Events.INTERRUPT_REQUESTED, self._handle_interrupt)
         self.event_bus.subscribe(Events.PERMISSION_GRANTED, self._handle_permission_granted)
         self.event_bus.subscribe(Events.PERMISSION_DENIED, self._handle_permission_denied)
@@ -131,31 +153,66 @@ class Orchestrator:
             return str(result.final_result)
         return str(result)
 
-    async def _handle_speech_input(self, event: Event) -> None:
+    def _maybe_apply_skill_learning(
+        self,
+        skill_name: Optional[str],
+        task_summary: str,
+        *,
+        success: bool,
+    ) -> None:
+        if not skill_name or not self.skill_registry:
+            return
+        skills_cfg = getattr(getattr(self.runtime_context, "config", None), "skills", None)
+        if skills_cfg is not None and not getattr(skills_cfg, "auto_apply_mutations", True):
+            return
+        try:
+            from skills.learning_apply import apply_learning_mutation
+
+            policy = getattr(skills_cfg, "install_policy", "cautious") if skills_cfg else "cautious"
+            apply_learning_mutation(
+                self.skill_registry,
+                skill_name,
+                task_summary=task_summary,
+                success=success,
+                policy=policy,
+            )
+        except Exception as exc:
+            logger.debug("Skill learning mutation skipped: %s", exc)
+
+    async def _handle_user_input(self, event: Event) -> None:
         user_input = event.payload.get("text", "")
         if not user_input.strip():
+            return
+
+        if self.turn_policy == TurnPolicy.QUEUE and self._is_execution_active():
+            await self._input_queue.put(user_input)
+            logger.info("Queued user input (turn_policy=queue): %s...", user_input[:80])
+            return
+
+        if self.turn_policy == TurnPolicy.STEER and self._is_execution_active():
+            if self._active_session:
+                self._active_session.add_steering(user_input)
+                logger.info("Steering active turn: %s...", user_input[:80])
             return
 
         logger.info("Processing user input: %s...", user_input[:100])
         try:
             result = await self.process_user_input(user_input)
+            response_text = self._format_response(result)
+            response_text = await apply_transform_llm_output_async(
+                response_text, source="orchestrator", input=user_input
+            )
             await self.event_bus.publish(
                 Event(
                     Events.ORCHESTRATOR_RESPONSE,
-                    {"text": self._format_response(result), "source": "orchestrator"},
+                    {
+                        "text": response_text,
+                        "source": event.payload.get("source", "orchestrator"),
+                    },
                     "orchestrator",
                 )
             )
         except asyncio.CancelledError:
-            await self.event_bus.publish(
-                Event(
-                    Events.EXECUTION_CANCELLED,
-                    {"input": user_input},
-                    "orchestrator",
-                )
-            )
-        except asyncio.CancelledError as e:
-            logger.info("User input processing cancelled")
             await self.event_bus.publish(
                 Event(
                     Events.EXECUTION_CANCELLED,
@@ -182,6 +239,17 @@ class Orchestrator:
                 )
             )
 
+    async def _handle_speech_input(self, event: Event) -> None:
+        """Backward-compatible alias for tests and legacy callers."""
+        await self._handle_user_input(event)
+
+    def _is_execution_active(self) -> bool:
+        if self._active_session and self._active_session.is_active:
+            return True
+        if self.runtime_context and self.runtime_context.active_session:
+            return self.runtime_context.active_session.is_active
+        return False
+
     async def process_user_input(self, user_input: str) -> Any:
         if self._execution_wrapper:
             return await self._execution_wrapper.run(
@@ -190,10 +258,17 @@ class Orchestrator:
         return await self._process_user_input_core(user_input)
 
     async def _process_user_input_core(self, user_input: str) -> Any:
+        clear_interrupt()
         session = ExecutionSession()
         self._active_session = session
         if self.runtime_context:
             self.runtime_context.set_active_session(session)
+
+        await invoke_hook_async(
+            "on_session_start",
+            session_id=session.session_id,
+            user_input=user_input,
+        )
 
         task: Task[Any] = asyncio.create_task(self._run_pipeline(user_input, session))
         session.register_task(task)
@@ -204,16 +279,124 @@ class Orchestrator:
             session.cancel()
             raise TimeoutError("Execution exceeded max_execution_time")
         finally:
+            clear_interrupt()
+            await invoke_hook_async(
+                "on_session_end",
+                session_id=session.session_id,
+                user_input=user_input,
+            )
             self._active_session = None
             if self.runtime_context:
                 self.runtime_context.set_active_session(None)
+            if self.turn_policy == TurnPolicy.QUEUE:
+                await self._process_next_queued()
+
+    async def _process_next_queued(self) -> None:
+        try:
+            queued = self._input_queue.get_nowait()
+        except asyncio.QueueEmpty:
+            return
+        logger.info("Processing queued input: %s...", queued[:80])
+        try:
+            result = await self.process_user_input(queued)
+            response_text = self._format_response(result)
+            response_text = await apply_transform_llm_output_async(
+                response_text, source="orchestrator", input=queued
+            )
+            await self.event_bus.publish(
+                Event(
+                    Events.ORCHESTRATOR_RESPONSE,
+                    {"text": response_text, "source": "orchestrator", "queued": True},
+                    "orchestrator",
+                )
+            )
+        except Exception as exc:
+            logger.error("Queued input processing failed: %s", exc)
 
     async def _run_pipeline(self, user_input: str, session: ExecutionSession) -> Any:
         start_time: float = asyncio.get_event_loop().time()
         self.metrics["total_requests"] += 1
+        conversation_id = session.session_id
+        source = "voice"
+
+        if self.session_manager:
+            if self.session_manager.reset_if_requested(user_input):
+                logger.info("Started new conversation session")
+            conversation_id = self.session_manager.ensure_active_session(source=source)
+            self.session_manager.record_user_message(conversation_id, user_input)
+            continue_answer = self.session_manager.try_session_continue(user_input)
+            if continue_answer:
+                self.session_manager.record_assistant_message(conversation_id, continue_answer)
+                if self.memory_lifecycle:
+                    self.memory_lifecycle.sync_turn(
+                        user_input, continue_answer, session_id=conversation_id
+                    )
+                return continue_answer
+            recall_answer = self.session_manager.try_session_recall(user_input)
+            if recall_answer:
+                self.session_manager.record_assistant_message(conversation_id, recall_answer)
+                if self.memory_lifecycle:
+                    self.memory_lifecycle.sync_turn(
+                        user_input, recall_answer, session_id=conversation_id
+                    )
+                return recall_answer
+
+        from skills.skill_commands import is_learn_request, parse_skill_invocation
+        from skills.learn_prompt import build_learn_prompt
+
+        active_skill_name = None
+        if is_learn_request(user_input):
+            user_input = build_learn_prompt(user_input)
+
+        skill_invoke = parse_skill_invocation(user_input)
+        active_skill_body = None
+        active_skill_name = None
+        if skill_invoke and self.skill_registry:
+            active_skill_name = skill_invoke.skill_name
+            active_skill_body = self.skill_registry.load_skill_body(skill_invoke.skill_name)
+            if active_skill_body:
+                logger.info("Activated skill: %s", skill_invoke.skill_name)
+                try:
+                    from skills.skill_usage import SkillUsageTracker
+
+                    SkillUsageTracker().record(skill_invoke.skill_name, source=source)
+                except Exception as exc:
+                    logger.debug("Skill usage tracking failed: %s", exc)
+
+        moa_cfg = getattr(getattr(self.runtime_context, "config", None), "moa", None)
+        if moa_cfg and getattr(moa_cfg, "enabled", False):
+            lower = user_input.lower()
+            if any(p in lower for p in ("second opinion", "get advisors", "moa advise")):
+                from agents.moa.moa_loop import MoaLoop
+                from agents.moa.moa_trace import MoaTrace
+
+                loop = MoaLoop(
+                    self.agent_llm,
+                    reference_roles=getattr(moa_cfg, "reference_models", None) or None,
+                    max_advisors=int(getattr(moa_cfg, "max_advisors", 3)),
+                )
+                moa_result = await loop.advise(user_input)
+                MoaTrace().record(moa_result)
+                return moa_result.get("synthesis", "")
 
         try:
             plan: TaskPlan = self.planner.analyze_input(user_input)
+
+            if self.skill_registry:
+                plan.context = plan.context or {}
+                plan.context["skills_index"] = self.skill_registry.format_index(max_items=25)
+            if active_skill_body:
+                plan.context = plan.context or {}
+                plan.context["active_skill"] = active_skill_body
+                plan.context["active_skill_name"] = skill_invoke.skill_name
+
+            if self.memory_lifecycle:
+                prefetched = self.memory_lifecycle.prefetch(
+                    user_input, session_id=conversation_id
+                )
+                if prefetched:
+                    plan.context = plan.context or {}
+                    plan.context["memory_prefetch"] = prefetched
 
             if self.memory:
                 try:
@@ -234,8 +417,18 @@ class Orchestrator:
 
             execution_time: float = asyncio.get_event_loop().time() - start_time
             self._update_metrics(plan, execution_time, True)
+
+            response_text = self._format_response(result)
+            if self.session_manager and conversation_id:
+                self.session_manager.record_assistant_message(conversation_id, response_text)
+            if self.memory_lifecycle:
+                self.memory_lifecycle.sync_turn(
+                    user_input, response_text, session_id=conversation_id
+                )
+            self._maybe_apply_skill_learning(active_skill_name, response_text, success=True)
             return result
         except asyncio.CancelledError:
+            self._maybe_apply_skill_learning(active_skill_name, "", success=False)
             self._update_metrics(None, asyncio.get_event_loop().time() - start_time, False)
             raise
         except asyncio.TimeoutError as e:
@@ -256,6 +449,8 @@ class Orchestrator:
 
         if plan.type.value == "workflow":
             route_result: RouteResult = await self._execute_workflow_task(plan, user_input, session)
+        elif plan.type.value == "delegation":
+            route_result = await self._execute_delegation_task(plan, user_input, session)
         elif plan.type.value == "autonomous":
             route_result = await self._execute_autonomous_task(plan, user_input)
         else:
@@ -294,6 +489,20 @@ class Orchestrator:
             user_input=user_input,
             description=plan.intent,
         )
+
+        if plan.context.get("parallel") and self.delegate_runner:
+            import time
+            start = time.time()
+            tasks = [{"goal": n.goal, "role": n.role} for n in nodes]
+            batch = await self.delegate_runner.run_batch(tasks, session=session)
+            return RouteResult(
+                success=bool(batch.get("success")),
+                result=batch.get("summary", batch),
+                execution_path="delegate_parallel",
+                execution_time=time.time() - start,
+                error=batch.get("error"),
+            )
+
         max_agents = 5
         try:
             from core.config_manager import ConfigManager
@@ -320,25 +529,78 @@ class Orchestrator:
             execution_time=time.time() - start,
         )
 
+    async def _execute_delegation_task(
+        self, plan: TaskPlan, user_input: str, session: ExecutionSession
+    ):
+        from agents.core.router import RouteResult
+        from core.distributed.routing import should_offload_to_workers
+        import time
+
+        if should_offload_to_workers(plan):
+            start = time.time()
+            result = await self.router._route_queued_task(plan, user_input)
+            return RouteResult(
+                success=True,
+                result=result,
+                execution_path="queued_delegation",
+                execution_time=time.time() - start,
+            )
+
+        if not self.delegate_runner:
+            raise RuntimeError("Delegation is not configured")
+
+        start = time.time()
+        ctx = plan.context or {}
+        goal = ctx.get("delegation_goal", user_input)
+        role = ctx.get("delegation_role", plan.role or "researcher")
+        result = await self.delegate_runner.run_single(
+            goal,
+            role=role,
+            context=user_input,
+            session=session,
+        )
+        return RouteResult(
+            success=bool(result.get("success")),
+            result=result.get("summary", result),
+            execution_path="delegate_single",
+            execution_time=time.time() - start,
+            error=result.get("error"),
+        )
+
     async def _execute_autonomous_task(self, plan: TaskPlan, user_input: str) -> Any:
         try:
-            from agents.autonomous.state_manager import AutonomousStateManager
-            from agents.autonomous.tool_generator import AutonomousToolGenerator
-            from agents.autonomous.tool_executor import AutonomousToolExecutor
-            from agents.autonomous.agent_loop import AutonomousAgentLoop
-            from agents.core.safety import SafetyModule
             from agents.core.router import RouteResult
+            from core.distributed.routing import should_offload_to_workers
 
-            state_manager = AutonomousStateManager()
-            safety_module = SafetyModule(permission_engine=self.permission_engine)
-            tool_generator = AutonomousToolGenerator(
-                state_manager, safety_module, self.permission_engine
+            if should_offload_to_workers(plan):
+                start = asyncio.get_event_loop().time()
+                result = await self.router._route_queued_task(plan, user_input)
+                return RouteResult(
+                    success=True,
+                    result=result,
+                    execution_path="queued_autonomous",
+                    execution_time=asyncio.get_event_loop().time() - start,
+                )
+
+            from agents.autonomous.agent_loop import AutonomousAgentLoop
+
+            policy = getattr(self.permission_engine, "policy", None)
+            workspace = getattr(
+                getattr(self.runtime_context, "config", None), "workspace_path", "workspace"
             )
-            tool_executor = AutonomousToolExecutor(
-                state_manager, safety_module, self.permission_engine
-            )
-            agent_loop = AutonomousAgentLoop(
-                state_manager, tool_generator, tool_executor, safety_module, self.permission_engine
+            if policy and policy.should_snapshot_autonomous("autonomous"):
+                from core.policy.snapshot import create_workspace_snapshot
+
+                snap = create_workspace_snapshot(
+                    workspace,
+                    label="autonomous",
+                    metadata={"intent": plan.intent, "input": user_input[:200]},
+                    include_paths=["."],
+                )
+                self.permission_engine.audit.record("workspace_snapshot", snap)
+
+            agent_loop = AutonomousAgentLoop.from_workspace(
+                permission_engine=self.permission_engine,
             )
 
             goal: Any | str = (
@@ -366,7 +628,7 @@ class Orchestrator:
 
     async def _safety_check(self, plan: TaskPlan, user_input: str) -> Dict[str, Any]:
         permission_required: bool = await self.permission_engine.is_permission_required(
-            plan.intent, plan.tools_required
+            plan.intent, plan.tools_required, plan_type=plan.type.value
         )
         if not permission_required:
             return {"allowed": True, "reason": "No permission required"}
@@ -411,6 +673,11 @@ class Orchestrator:
     async def _handle_interrupt(self, event: Event) -> None:
         if not self.config.enable_interrupts:
             return
+        if self.turn_policy != TurnPolicy.INTERRUPT:
+            return
+        from interrupt.thread_interrupt import set_interrupt
+
+        set_interrupt(True)
         logger.info("Interrupt requested, cancelling current execution")
         if self._active_session:
             self._active_session.cancel()

@@ -353,6 +353,11 @@ class VoiceCLIIntegration:
             '  research reinforcement learning',
             "",
             "Interrupt: Ctrl+C or say stop/cancel",
+            "",
+            "Session shell (when enabled):",
+            "  Say wake phrase before commands (default: hey voiceos)",
+            "  continue what we were doing — resume last session",
+            "  new conversation — reset session history",
         ]
         for line in help_lines:
             if line.startswith("  ") and not line.startswith("  help"):

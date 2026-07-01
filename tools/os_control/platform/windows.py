@@ -22,9 +22,10 @@ class WindowsAdapter(PlatformAdapter):
         cmd_args = list(args or [])
         try:
             if cmd_args:
+                arg_str = " ".join(f'"{a}"' for a in cmd_args)
                 proc = subprocess.Popen(
-                    [executable, *cmd_args],
-                    shell=False,
+                    f'start "" "{executable}" {arg_str}',
+                    shell=True,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )

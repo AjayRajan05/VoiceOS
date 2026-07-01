@@ -8,6 +8,12 @@ from helpers.print_style import PrintStyle
 from helpers.log import Log
 
 class DockerContainerManager:
+    """
+    Legacy ad-hoc container launcher for Agent Zero-style code execution.
+
+    Prefer the unified VoiceOS sandbox (Redis workers + shared workspace) via
+    core.sandbox.unified_executor when EXECUTION_MODE=queued.
+    """
     def __init__(self, image: str, name: str, ports: Optional[dict[str, int]] = None, volumes: Optional[dict[str, dict[str, str]]] = None,logger: Log|None=None):
         self.logger = logger
         self.image = image

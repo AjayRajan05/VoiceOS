@@ -1,100 +1,50 @@
-# Agent Zero - Core Plugins
+# VoiceOS plugins
 
-This directory contains the system-level plugins bundled with Agent Zero.
+This folder contains **bundled plugins** shipped with VoiceOS (browser, memory, code execution, integrations, and more).
 
-## Directory Structure
+## For users
 
-- `plugins/`: Core system plugins. Reserved for framework updates — do not place custom plugins here.
-- `usr/plugins/`: The correct location for all user-developed and custom plugins. This directory is gitignored.
+Plugins are loaded automatically at startup. You do not need to configure them for basic use.
+
+Check status:
+
+```bash
+voiceos-ecosystem list
+voiceos-ecosystem validate
+```
+
+## For developers
+
+Each plugin is a folder with a `plugin.yaml` manifest:
+
+```yaml
+name: my_plugin
+title: My Plugin
+description: What it does
+version: 1.0.0
+execution_surface: either    # host | worker | either
+provides_tools:
+  - my_tool_name
+```
+
+| `execution_surface` | Runs on |
+|---------------------|---------|
+| `host` | Your computer only (browser UI, desktop) |
+| `worker` | Docker workers only |
+| `either` | Host or worker, decided at runtime |
+
+**Rules:**
+- OS/desktop tools (`os_*`) must use `host` only.
+- Workers never execute OS automation.
 
 ## Documentation
 
-For detailed guides on how to create, extend, or configure plugins, refer to:
+- [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) — system overview  
+- [docs/CONTRIBUTING.md](../docs/CONTRIBUTING.md) — how to add plugins  
+- [config/schemas/voiceos-intent.schema.json](../config/schemas/voiceos-intent.schema.json) — OS intent API for integrations  
 
-- [`docs/agents/AGENTS.plugins.md`](../docs/agents/AGENTS.plugins.md): Full-stack plugin architecture, manifest format, extension points, and Plugin Index submission.
-- [`docs/developer/plugins.md`](../docs/developer/plugins.md): Human-facing developer guide covering the full plugin lifecycle.
-- [`AGENTS.md`](../AGENTS.md): Main framework guide and backend context.
-- [`skills/a0-plugin-router/SKILL.md`](../skills/a0-plugin-router/SKILL.md): Agent-facing entry point that routes plugin tasks to the appropriate specialist skill.
-- [`skills/a0-create-plugin/SKILL.md`](../skills/a0-create-plugin/SKILL.md): Agent-facing authoring workflow (local and community plugins).
+## Custom plugins
 
-## What a Plugin Can Provide
+Add new plugins under `plugins/your_plugin/` with `plugin.yaml`, or use hooks under `workspace/hooks/`.
 
-Plugins are automatically discovered based on the presence of a `plugin.yaml` file. Each plugin can contribute:
-
-- **Backend**: API handlers, tools, helpers, named lifecycle extensions, and implicit `@extensible` hooks under `extensions/python/_functions/...`
-- **Frontend**: HTML/JS UI contributions via core extension breakpoints
-- **Settings**: Isolated configuration scoped per-project and per-agent profile
-- **Activation**: Global and scoped ON/OFF rules via `.toggle-1` and `.toggle-0` files, including advanced per-scope switching in the WebUI
-- **Agent profiles**: Plugin-distributed subagent definitions under `agents/<profile>/agent.yaml`
-
-Backend extension layouts:
-- `extensions/python/<point>/` for named lifecycle hooks
-- `extensions/python/_functions/<module>/<qualname>/<start|end>/` for implicit `@extensible` hooks
-
-Do not use the retired flattened `extensions/python/<module>_<qualname>_<start|end>/` form.
-
-## Plugin Manifest
-
-Every plugin requires a `plugin.yaml` at its root:
-
-```yaml
-name: my_plugin              # required for community plugins
-title: My Plugin
-description: What this plugin does.
-version: 1.0.0
-settings_sections:
-  - agent
-per_project_config: false
-per_agent_config: false
-always_enabled: false
-```
-
-## Plugin Script (`execute.py`)
-
-Plugins can include an optional `execute.py` at the plugin root for user-triggered operations such as setup, post-install steps, maintenance, repairs, migrations, or resource refreshes. Users trigger it from the Plugin List UI.
-
-Guidelines:
-- Treat it as a manual plugin script, not as the primary way to use the plugin
-- Prefer making it safe to rerun, or detect state and explain why a rerun is not appropriate
-- Return `0` on success and print progress messages for user feedback
-- Use `hooks.py` instead when the behavior is framework-internal or should happen automatically
-
-## Runtime Hooks (`hooks.py`)
-
-Plugins can also include an optional `hooks.py` at the plugin root. The framework loads it on demand and can call exported hook functions by name through `helpers.plugins.call_plugin_hook(...)`.
-
-- `hooks.py` runs inside the **Agent Zero framework runtime and Python environment**.
-- Use it for framework-internal work such as install hooks, cache preparation, registration, or filesystem setup.
-- If it runs `sys.executable -m pip install ...`, packages are installed into the same Python environment that runs Agent Zero.
-- If you need to install into the separate agent runtime or into the system environment, explicitly target that environment from a subprocess by selecting the correct interpreter, virtualenv, or package manager.
-
-In Docker, `hooks.py` normally affects `/opt/venv-a0`; the agent execution runtime is `/opt/venv`.
-
-## Plugin Index & Community Sharing
-
-The **Plugin Index** at https://github.com/agent0ai/a0-plugins is the community-maintained registry of plugins available to all Agent Zero users.
-
-To share a plugin with the community:
-
-1. Create a standalone GitHub repository with the plugin contents at the repo root. The runtime `plugin.yaml` must include a `name` field matching the intended index folder name. Add a `LICENSE` file at the repo root (required for Plugin Index listings so users have explicit terms of use).
-2. Fork `https://github.com/agent0ai/a0-plugins` and add a folder `plugins/<your_plugin_name>/` containing a separate index manifest named `index.yaml` (not `plugin.yaml`):
-
-```yaml
-title: My Plugin
-description: What this plugin does.
-github: https://github.com/yourname/your-plugin-repo
-tags:
-  - tools
-```
-
-Optional additional fields: `screenshots` (up to 5 image URLs).
-
-3. Open a Pull Request. CI validates the submission; a maintainer reviews and merges.
-
-Note: The index `index.yaml` is a **different file with a different schema** from the runtime `plugin.yaml`. Folder names use `^[a-z0-9_]+$` (underscores, no hyphens) and must match the `name` field in the remote `plugin.yaml` exactly.
-
-## Plugin Hub
-
-Agent Zero now includes a built-in Plugin Hub flow through the always-enabled **Plugin Installer** plugin. From the **Plugins** dialog, users can either open the **Browse** tab or click **Install**, which opens the installer modal on its own **Browse** tab.
-
-The Plugin Hub surfaces Plugin Index entries directly in the UI and lets users search, filter, inspect, and install community plugins without leaving Agent Zero.
+Do not commit secrets or API keys inside plugin folders.

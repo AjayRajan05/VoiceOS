@@ -407,9 +407,8 @@ class ErrorRecovery:
         # Wait before retry
         await asyncio.sleep(backoff)
         
-        # In a real implementation, this would retry the original operation
-        # For now, we'll simulate success
-        return error_info.recovery_attempts >= strategy.max_attempts
+        # Retry is coordinated by the caller; backoff only applies here.
+        return False
     
     async def _fallback_recovery(self, error_info: ErrorInfo, strategy: RecoveryAction) -> bool:
         """
@@ -432,49 +431,37 @@ class ErrorRecovery:
         Restart component recovery
         """
         logger.info(f"Restarting component {error_info.component} for error {error_info.error_id}")
-        
-        # In a real implementation, this would restart the component
-        # For now, simulate success
-        return True
+        return False
     
     async def _degrade_service_recovery(self, error_info: ErrorInfo, strategy: RecoveryStrategy) -> bool:
         """
         Degrade service recovery
         """
         logger.info(f"Degrading service for error {error_info.error_id}")
-        
-        # In a real implementation, this would degrade the service
-        # For now, simulate success
-        return True
+        return False
     
     async def _llm_fallback_handler(self, error_info: ErrorInfo) -> bool:
         """
         Fallback handler for LLM errors
         """
         logger.info("Using LLM fallback handler")
-        
-        # In a real implementation, this would switch to alternative LLM
-        # For now, simulate success
-        return True
+        return False
     
     async def _tool_fallback_handler(self, error_info: ErrorInfo) -> bool:
         """
         Fallback handler for tool errors
         """
         logger.info("Using tool fallback handler")
-        
-        # In a real implementation, this would use alternative tool
-        # For now, simulate success
-        return True
+        return False
     
     async def _memory_cleanup_handler(self, error_info: ErrorInfo) -> bool:
         """
         Memory cleanup handler
         """
         logger.info("Performing memory cleanup")
-        
-        # In a real implementation, this would clean up memory
-        # For now, simulate success
+        import gc
+
+        gc.collect()
         return True
     
     def _is_circuit_breaker_open(self, component: str) -> bool:

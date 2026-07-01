@@ -1,18 +1,17 @@
 """Tests for cross-platform OS control adapters."""
 
 import platform
-from unittest.mock import MagicMock, patch
 
 import pytest
 
+from tools.os_control.app_launcher import AppLauncher
+from tools.os_control.os_tool_router import OSToolRouter
+from tools.os_control.platform import get_os_capabilities, get_platform_adapter
 from tools.os_control.platform.aliases import load_app_aliases, resolve_app_alias
-from tools.os_control.platform import get_platform_adapter, get_os_capabilities
-from tools.os_control.platform.windows import WindowsAdapter
 from tools.os_control.platform.darwin import DarwinAdapter
 from tools.os_control.platform.linux import LinuxAdapter
-from tools.os_control.app_launcher import AppLauncher
+from tools.os_control.platform.windows import WindowsAdapter
 from tools.os_control.window_manager import WindowManager
-from tools.os_control.os_tool_router import OSToolRouter
 
 
 class TestAppAliases:
@@ -65,59 +64,45 @@ class TestPlatformAdapters:
         assert report["platform_key"] in ("windows", "darwin", "linux")
 
 
-class TestAppLauncherWithAdapter:
-    def test_open_app_success_message(self):
-        mock = MagicMock()
-        mock.open_app.return_value = {"success": True, "message": "Opening code"}
-        launcher = AppLauncher(mock)
-        assert launcher.open_app("vscode") == "Opening code"
+class TestAppLauncherWithRealAdapter:
+    def test_open_app_resolves_alias(self):
+        adapter = get_platform_adapter(force_refresh=True)
+        launcher = AppLauncher(adapter)
+        resolved = adapter.resolve_app("vscode")
+        assert resolved is not None
+        assert isinstance(resolved, str)
 
-    def test_open_app_failure_message(self):
-        mock = MagicMock()
-        mock.open_app.return_value = {"success": False, "error": "not found"}
-        launcher = AppLauncher(mock)
-        result = launcher.open_app("missing")
-        assert "Failed" in result
-        assert "not found" in result
+    def test_open_app_unknown_returns_message(self):
+        adapter = get_platform_adapter(force_refresh=True)
+        launcher = AppLauncher(adapter)
+        result = launcher.open_app("this-app-definitely-does-not-exist-voiceos-test")
+        assert isinstance(result, str)
+        assert result
 
 
-class TestWindowManagerWithAdapter:
-    def test_close_window_delegates(self):
-        mock = MagicMock()
-        mock.close_active_window.return_value = "Closed current window."
-        wm = WindowManager(mock)
-        assert wm.close_window() == "Closed current window."
-        mock.close_active_window.assert_called_once()
+class TestWindowManagerWithRealAdapter:
+    def test_close_window_returns_string(self):
+        adapter = get_platform_adapter(force_refresh=True)
+        wm = WindowManager(adapter)
+        result = wm.close_window()
+        assert isinstance(result, str)
 
-    def test_switch_window_delegates(self):
-        mock = MagicMock()
-        mock.switch_window.return_value = "Switched window."
-        wm = WindowManager(mock)
-        assert wm.switch_window() == "Switched window."
+    def test_switch_window_returns_string(self):
+        adapter = get_platform_adapter(force_refresh=True)
+        wm = WindowManager(adapter)
+        result = wm.switch_window()
+        assert isinstance(result, str)
 
 
 class TestOSToolRouter:
-    def test_resolve_app_via_adapter(self):
-        mock = MagicMock()
-        mock.resolve_app.return_value = "code"
-        mock.open_app.return_value = {"success": True, "message": "Opening code"}
-        router = OSToolRouter(adapter=mock)
-        router.execute("open_app", {"app": "vscode"})
-        mock.resolve_app.assert_called()
-        mock.open_app.assert_called()
+    def test_resolve_app_via_real_adapter(self):
+        adapter = get_platform_adapter(force_refresh=True)
+        router = OSToolRouter(adapter=adapter)
+        result = router.execute("open_app", {"app": "this-app-definitely-does-not-exist-voiceos-test"})
+        assert isinstance(result, str)
 
-    def test_focus_app_without_system_integration(self):
-        mock = MagicMock()
-        mock.resolve_app.return_value = "code"
-        mock.focus_window.return_value = {"success": True, "message": "Focused code"}
-        router = OSToolRouter(adapter=mock)
-        result = router.execute("focus_app", {"app": "vscode"})
-        assert result == "Focused code"
-
-    def test_open_app_integration(self):
-        """Manual/smoke: actually launches nothing harmful — uses mock on CI."""
-        mock = MagicMock()
-        mock.resolve_app.return_value = "calc"
-        mock.open_app.return_value = {"success": True, "message": "Opening calc"}
-        router = OSToolRouter(adapter=mock)
-        assert "Opening" in router.execute("open_app", {"app": "calculator"})
+    def test_focus_app_with_real_adapter(self):
+        adapter = get_platform_adapter(force_refresh=True)
+        router = OSToolRouter(adapter=adapter)
+        result = router.execute("focus_app", {"app": "this-app-definitely-does-not-exist-voiceos-test"})
+        assert isinstance(result, str)

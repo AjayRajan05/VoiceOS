@@ -1,0 +1,22 @@
+# VoiceOS host control plane (optional slim config)
+# Default install uses config/voiceos.yaml
+# Use: voiceos --config config/voiceos.host.yaml
+
+execution_mode: auto
+
+distributed:
+  redis_url: redis://localhost:6379/0
+  auto_detect_redis: true
+
+sandbox:
+  prefer_docker_workers: true
+
+voice:
+  turn_policy: interrupt
+
+session_shell:
+  enabled: true
+  input_mode: wake_word
+
+gateway:
+  enabled: false

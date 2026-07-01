@@ -34,15 +34,20 @@ def get_platform_adapter(force_refresh: bool = False) -> PlatformAdapter:
 
 def get_os_capabilities() -> dict:
     """Summary of OS control support for status reporting."""
+    from core.os_layer.capabilities import get_intent_capabilities
+
     adapter = get_platform_adapter()
     import platform as plat
 
+    oal = get_intent_capabilities(adapter)
     return {
         "platform": plat.system(),
         "platform_key": adapter.platform_key,
         "display_name": adapter.display_name,
         "python_os_name": plat.platform(),
         "capabilities": adapter.capabilities(),
+        "intents": oal.get("intents", {}),
+        "notes": oal.get("notes", []),
     }
 
 
