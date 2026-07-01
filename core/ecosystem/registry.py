@@ -92,7 +92,7 @@ class EcosystemRegistry:
         s = self.summary()
         lines = [
             f"Plugins: {s.plugins} | Skills: {s.skills} | Tools indexed: {s.tools}",
-            f"Surfaces — host: {s.host_only_tools}, worker: {s.worker_tools}, either: {s.either_tools}",
+            f"Surfaces - host: {s.host_only_tools}, worker: {s.worker_tools}, either: {s.either_tools}",
         ]
         if s.validation_issues:
             lines.append(f"Validation issues: {len(s.validation_issues)}")

@@ -47,7 +47,7 @@ class VoiceConsole:
             print(f"{line}{Style.RESET_ALL}")
         else:
             print(line)
-            print("  VoiceOS — CLI Multi-Agent Operating System")
+            print("  VoiceOS - CLI Multi-Agent Operating System")
             print(line)
 
     @classmethod
@@ -77,7 +77,7 @@ class VoiceConsole:
 
     @classmethod
     def tool(cls, name: str, message: str = "") -> None:
-        detail = f" — {message}" if message else ""
+        detail = f" - {message}" if message else ""
         cls._print("[tool]", Fore.YELLOW, f"{name}{detail}")
 
     @classmethod

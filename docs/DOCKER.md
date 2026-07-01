@@ -20,7 +20,7 @@ The **host** always keeps: microphone, speakers, permissions, and desktop automa
 
 1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/Mac) or Docker Engine (Linux).  
 2. Ensure Docker is running: `docker info`  
-3. Install VoiceOS on the host (`pip install -e .`) — voice does not run inside the worker container on Windows/Mac.
+3. Install VoiceOS on the host (`pip install -e .`); voice does not run inside the worker container on Windows/Mac.
 
 ---
 
@@ -116,8 +116,8 @@ VOICEOS_WORKER_IMAGE=ghcr.io/your-org/voiceos-worker:latest
 
 ## What not to run in Docker
 
-- **Voice input** on Windows/Mac — use host `voiceos` for microphone access.  
-- **OS desktop automation** — always on host (`os_*` tools blocked in workers).  
+- **Voice input** on Windows/Mac: use host `voiceos` for microphone access.  
+- **OS desktop automation**: always on host (`os_*` tools blocked in workers).  
 
 ---
 

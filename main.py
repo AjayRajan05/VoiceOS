@@ -284,10 +284,10 @@ async def main():
                     VoiceConsole.info(greeting)
                     if shell_cfg.input_mode == "wake_word":
                         phrases = ", ".join(f'"{p}"' for p in shell_cfg.wake_phrases[:2])
-                        VoiceConsole.dim(f"Wake word mode — say {phrases} to start.")
+                        VoiceConsole.dim(f"Wake word mode: say {phrases} to start.")
                     elif shell_cfg.input_mode == "push_to_talk":
                         VoiceConsole.dim(
-                            f"Push-to-talk — hold {shell_cfg.push_to_talk_key} while speaking."
+                            f"Push-to-talk: hold {shell_cfg.push_to_talk_key} while speaking."
                         )
 
         if args.gateway or voiceos_config.gateway.enabled:
@@ -312,7 +312,7 @@ async def main():
             VoiceConsole.info(f"Scheduler: {scheduler_cfg.cron_path}")
 
         logger.info("VoiceOS Multi-Agent System ready.")
-        VoiceConsole.success("VoiceOS ready — speak or type at the prompt.")
+        VoiceConsole.success("VoiceOS ready: speak or type at the prompt.")
         await voice_cli.start()
 
     except KeyboardInterrupt:

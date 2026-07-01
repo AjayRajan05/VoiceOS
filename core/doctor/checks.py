@@ -167,7 +167,7 @@ def check_microphone() -> DoctorCheck:
             "microphone",
             "warn",
             str(exc),
-            "Voice mode may not work in Docker on Windows/macOS — use hybrid host agent",
+            "Voice mode may not work in Docker on Windows/macOS; use hybrid host agent",
         )
 
 

@@ -1,6 +1,6 @@
 # Getting started with VoiceOS
 
-This guide walks you through installing and running VoiceOS from scratch. No prior coding experience is required for the basic setup — copy and paste the commands for your operating system.
+This guide walks you through installing and running VoiceOS from scratch. No prior coding experience is required for the basic setup; copy and paste the commands for your operating system.
 
 ---
 
@@ -14,7 +14,7 @@ This guide walks you through installing and running VoiceOS from scratch. No pri
 
 ---
 
-## Step 1 — Download VoiceOS
+## Step 1: Download VoiceOS
 
 Open a terminal (PowerShell on Windows, Terminal on Mac/Linux):
 
@@ -25,7 +25,7 @@ cd VoiceOS/project
 
 ---
 
-## Step 2 — Python virtual environment
+## Step 2: Python virtual environment
 
 A virtual environment keeps VoiceOS packages separate from the rest of your system.
 
@@ -50,7 +50,7 @@ You should see `(.venv)` at the start of your prompt.
 
 ---
 
-## Step 3 — Install dependencies
+## Step 3: Install dependencies
 
 ```bash
 pip install --upgrade pip
@@ -62,7 +62,7 @@ The last command registers commands like `voiceos` and `voiceos-doctor`.
 
 ---
 
-## Step 4 — Environment file
+## Step 4: Environment file
 
 ```bash
 cp .env.example .env
@@ -80,7 +80,7 @@ VoiceOS can also create `.env` automatically on first run if it is missing.
 
 ---
 
-## Step 5 — Run the doctor
+## Step 5: Run the doctor
 
 ```bash
 voiceos-doctor
@@ -98,7 +98,7 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for details.
 
 ---
 
-## Step 6 — Start VoiceOS
+## Step 6: Start VoiceOS
 
 ### Typing only (simplest)
 
@@ -135,7 +135,7 @@ Say **“hey voiceos”** then your request.
 
 ---
 
-## Step 7 — Try example commands
+## Step 7: Try example commands
 
 At the prompt or after the wake phrase:
 
@@ -166,7 +166,7 @@ These folders are safe to back up. They are listed in `.gitignore` and are not p
 
 ## Next steps
 
-- [CONFIGURATION.md](CONFIGURATION.md) — tune voice, policy, Docker  
-- [DOCKER.md](DOCKER.md) — workers and GPU  
-- [ARCHITECTURE.md](ARCHITECTURE.md) — how components connect  
-- [CONTRIBUTING.md](CONTRIBUTING.md) — join development  
+- [CONFIGURATION.md](CONFIGURATION.md): tune voice, policy, Docker  
+- [DOCKER.md](DOCKER.md): workers and GPU  
+- [ARCHITECTURE.md](ARCHITECTURE.md): how components connect  
+- [CONTRIBUTING.md](CONTRIBUTING.md): join development  

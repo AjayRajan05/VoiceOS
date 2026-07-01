@@ -1,8 +1,8 @@
 # VoiceOS
 
-**Talk to your computer. It listens, plans, and gets things done — safely.**
+**Talk to your computer. It listens, plans, and gets things done safely.**
 
-VoiceOS is a free, open-source assistant you run on your own computer (Windows, macOS, or Linux). You can **speak** or **type** everyday requests — open apps, search the web, write files, run code, research topics, and multi-step projects — and VoiceOS handles the work using AI agents behind the scenes.
+VoiceOS is a free, open-source assistant you run on your own computer (Windows, macOS, or Linux). You can **speak** or **type** everyday requests (open apps, search the web, write files, run code, research topics, and multi-step projects), and VoiceOS handles the work using AI agents behind the scenes.
 
 VoiceOS does **not** replace your operating system. It sits **on top** of it: your voice and keyboard stay on your machine, sensitive desktop actions stay on your machine, and heavy AI work can optionally run in Docker containers for speed and isolation.
 
@@ -47,7 +47,7 @@ Your apps, files, and browser
 
 - **Host** = your computer running VoiceOS (voice, safety, opening apps).  
 - **Compute** = optional Docker workers for heavy tasks when Redis is running.  
-- If Docker is off, VoiceOS still works — everything runs on your CPU.
+- If Docker is off, VoiceOS still works; everything runs on your CPU.
 
 ---
 
@@ -55,11 +55,11 @@ Your apps, files, and browser
 
 | Requirement | Notes |
 |-------------|--------|
-| **Python 3.10+** | [python.org](https://www.python.org/downloads/) — check “Add to PATH” on Windows |
+| **Python 3.10+** | [python.org](https://www.python.org/downloads/); check “Add to PATH” on Windows |
 | **Microphone** | For voice mode (optional if you only use typing) |
 | **~8 GB RAM** | 16 GB+ recommended for local AI models |
 | **Docker Desktop** | Optional but recommended for heavy tasks ([docker.com](https://www.docker.com/products/docker-desktop/)) |
-| **Ollama** | Optional local LLM ([ollama.com](https://ollama.com)) — or use cloud API keys |
+| **Ollama** | Optional local LLM ([ollama.com](https://ollama.com)), or use cloud API keys |
 
 ---
 
@@ -120,10 +120,10 @@ voiceos --mode hybrid
 **Hybrid mode** = speak **and** type at the same time.
 
 At the `VoiceOS>` prompt, try:
-- `help` — list commands  
-- `open notepad` — simple OS task  
-- `research latest AI news` — agent task (uses Docker workers if available)  
-- `quit` — exit  
+- `help`: list commands  
+- `open notepad`: simple OS task  
+- `research latest AI news`: agent task (uses Docker workers if available)  
+- `quit`: exit  
 
 ---
 
@@ -161,12 +161,12 @@ For a hands-free style session:
 voiceos-shell
 ```
 
-Say **“hey voiceos”**, then your command — for example: *“hey voiceos, open Chrome”*.
+Say **“hey voiceos”**, then your command; for example: *“hey voiceos, open Chrome”*.
 
 Other useful phrases:
-- *“continue what we were doing”* — resume last session  
-- *“new conversation”* — start fresh  
-- *“stop”* or *“cancel”* — interrupt speech  
+- *“continue what we were doing”*: resume last session  
+- *“new conversation”*: start fresh  
+- *“stop”* or *“cancel”*: interrupt speech  
 
 ---
 
@@ -205,12 +205,12 @@ Details: [docs/DOCKER.md](docs/DOCKER.md)
 
 ## Safety and privacy
 
-- **Local-first** — models and conversation history stay on your disk (`workspace/`, `models/`, `logs/`).  
-- **Permission levels** — LOW / MEDIUM / HIGH; risky tools prompt you in the terminal.  
-- **Policy profiles** — `personal` (default), `work` (stricter), `unattended` (no prompts, auto-deny risky actions). Set `VOICEOS_POLICY_PROFILE` in `.env`.  
-- **Audit log** — `logs/audit.log` records approvals and worker actions. Export with `voiceos-audit-export`.  
-- **Sandbox** — agent file work stays under `workspace/`; code can run in Docker workers.  
-- **OS automation never runs in Docker workers** — opening apps and screenshots always stay on your computer.
+- **Local-first**: models and conversation history stay on your disk (`workspace/`, `models/`, `logs/`).  
+- **Permission levels**: LOW / MEDIUM / HIGH; risky tools prompt you in the terminal.  
+- **Policy profiles**: `personal` (default), `work` (stricter), `unattended` (no prompts, auto-deny risky actions). Set `VOICEOS_POLICY_PROFILE` in `.env`.  
+- **Audit log**: `logs/audit.log` records approvals and worker actions. Export with `voiceos-audit-export`.  
+- **Sandbox**: agent file work stays under `workspace/`; code can run in Docker workers.  
+- **OS automation never runs in Docker workers**: opening apps and screenshots always stay on your computer.
 
 ---
 
@@ -301,7 +301,7 @@ We welcome issues, documentation fixes, plugins, skills, and code improvements.
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) if present in the repository, or the license field in `pyproject.toml`.
+MIT License: see [LICENSE](LICENSE) if present in the repository, or the license field in `pyproject.toml`.
 
 ---
 
@@ -312,4 +312,4 @@ MIT License — see [LICENSE](LICENSE) if present in the repository, or the lice
 - **Logs:** `logs/voiceos.log` and `logs/audit.log`  
 - **Issues:** GitHub Issues on the project repository  
 
-**VoiceOS** — your voice, your machine, your rules.
+**VoiceOS**: your voice, your machine, your rules.

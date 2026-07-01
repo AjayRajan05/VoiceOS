@@ -13,7 +13,7 @@ def main() -> None:
     from core.ecosystem.intent_schema import export_intent_schema
     from core.ecosystem.registry import build_ecosystem_registry
 
-    parser = argparse.ArgumentParser(description="VoiceOS ecosystem — extensions, surfaces, intent schema")
+    parser = argparse.ArgumentParser(description="VoiceOS ecosystem: extensions, surfaces, intent schema")
     sub = parser.add_subparsers(dest="command", required=True)
 
     list_cmd = sub.add_parser("list", help="List plugins, skills, and tool surfaces")

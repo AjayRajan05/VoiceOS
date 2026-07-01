@@ -156,7 +156,7 @@ class LLMService:
             try:
                 self._ensure_llama()
             except ImportError:
-                return [f"[LLM unavailable — install llama-cpp-python] {text[:200]}"]
+                return [f"[LLM unavailable - install llama-cpp-python] {text[:200]}"]
             except Exception as e:
                 return [f"[LLM error: {e}]"]
             stream = self._llama(text, stream=True, temperature=params.get("temperature", 0.7))

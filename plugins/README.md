@@ -39,9 +39,9 @@ provides_tools:
 
 ## Documentation
 
-- [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) — system overview  
-- [docs/CONTRIBUTING.md](../docs/CONTRIBUTING.md) — how to add plugins  
-- [config/schemas/voiceos-intent.schema.json](../config/schemas/voiceos-intent.schema.json) — OS intent API for integrations  
+- [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md): system overview  
+- [docs/CONTRIBUTING.md](../docs/CONTRIBUTING.md): how to add plugins  
+- [config/schemas/voiceos-intent.schema.json](../config/schemas/voiceos-intent.schema.json): OS intent API for integrations  
 
 ## Custom plugins
 

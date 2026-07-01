@@ -201,8 +201,8 @@ def register_tools(
     """Build and return a ToolRegistry.
 
     Profiles:
-      host   — full tools including OS control (default on the host)
-      worker — sandbox tools only; no OS/desktop automation
+      host   - full tools including OS control (default on the host)
+      worker - sandbox tools only; no OS/desktop automation
     """
     profile = _tool_profile(tool_profile)
     registry = ToolRegistry(ToolConfig(auto_discover=False))
@@ -214,7 +214,7 @@ def register_tools(
         _register_os_tools(registry, system_integration)
         _register_system_tools(registry, system_integration)
         register_ide_tools(registry, system_integration)
-    # worker profile: file/web/code tools only — no OS, IDE, or desktop automation
+    # worker profile: file/web/code tools only; no OS, IDE, or desktop automation
 
     register_marketplace_tools(registry)
     try:

@@ -1,4 +1,4 @@
-# Optional — install for full voice/GPU/local-LLM/gateway support
+# Optional: install for full voice/GPU/local-LLM/gateway support
 coqui-tts
 webrtcvad
 chromadb

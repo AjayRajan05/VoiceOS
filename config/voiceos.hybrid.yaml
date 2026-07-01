@@ -1,4 +1,4 @@
-# Host-side hybrid config (optional — config/voiceos.yaml now defaults to execution_mode: auto).
+# Host-side hybrid config (optional; config/voiceos.yaml now defaults to execution_mode: auto).
 # Start infra: docker compose --profile core --profile workers up -d
 # Or use:      .\scripts\start_hybrid.ps1  /  ./scripts/start_hybrid.sh
 

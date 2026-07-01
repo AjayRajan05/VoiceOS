@@ -115,7 +115,7 @@ Check `REDIS_URL` matches compose (default port 6379).
 ### Action blocked with no prompt
 
 - `unattended` profile auto-denies risky actions.  
-- Workers never run OS tools — run desktop commands on the host.
+- Workers never run OS tools; run desktop commands on the host.
 
 ---
 

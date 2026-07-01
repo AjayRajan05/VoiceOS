@@ -6,11 +6,11 @@ Thank you for helping improve VoiceOS. This guide covers how to set up a develop
 
 ## Ways to contribute
 
-- **Bug reports** — Include `voiceos-doctor` output and steps to reproduce  
-- **Documentation** — Fix typos, clarify guides, translate sections  
-- **Skills** — Add `SKILL.md` packs under `skills/bundled/community/`  
-- **Plugins** — Extend `plugins/` with a valid `plugin.yaml`  
-- **Code** — Orchestrator, tools, OS adapters, tests  
+- **Bug reports**: Include `voiceos-doctor` output and steps to reproduce  
+- **Documentation**: Fix typos, clarify guides, translate sections  
+- **Skills**: Add `SKILL.md` packs under `skills/bundled/community/`  
+- **Plugins**: Extend `plugins/` with a valid `plugin.yaml`  
+- **Code**: Orchestrator, tools, OS adapters, tests  
 
 ---
 
@@ -48,7 +48,7 @@ python -m pytest tests/test_os_layer.py tests/test_policy.py -v
 ## Code style
 
 - Match surrounding code style and naming  
-- Keep changes focused — one feature or fix per PR  
+- Keep changes focused: one feature or fix per PR  
 - Prefer extending existing modules over duplicate helpers  
 - OS desktop operations must go through `core/os_layer/` or `PlatformAdapter`  
 - Never queue `os_*` tools to Docker workers  

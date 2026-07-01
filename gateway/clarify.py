@@ -34,14 +34,14 @@ def needs_clarification(text: str, *, source: str = "gateway") -> Optional[str]:
     """Return a clarifying question when input is too ambiguous to act on."""
     normalized = (text or "").strip()
     if not normalized:
-        return "I didn't catch that — what would you like me to do?"
+        return "I didn't catch that; what would you like me to do?"
 
     lower = normalized.lower()
     if len(lower) < 4:
         return "Could you say a bit more about what you need?"
 
     if lower in _VAGUE_PHRASES:
-        return "I need more context — what task should I help with?"
+        return "I need more context; what task should I help with?"
 
     if _PRONOUN_ONLY.match(lower):
         return "What should I do with that? Please describe the task."

@@ -54,7 +54,7 @@ WRITE_METHODS: FrozenSet[str] = frozenset({
 PROFILES: dict[str, PolicyProfile] = {
     "personal": PolicyProfile(
         name="personal",
-        description="Balanced defaults — prompt for destructive OS actions and high-risk tools.",
+        description="Balanced defaults: prompt for destructive OS actions and high-risk tools.",
         approve_all_os_tools=False,
         approve_high_os_tools=True,
         approve_file_writes=False,
@@ -66,7 +66,7 @@ PROFILES: dict[str, PolicyProfile] = {
     ),
     "work": PolicyProfile(
         name="work",
-        description="Stricter desktop policy — prompt before OS automation, writes, and autonomous runs.",
+        description="Stricter desktop policy: prompt before OS automation, writes, and autonomous runs.",
         approve_all_os_tools=True,
         approve_high_os_tools=True,
         approve_file_writes=True,
@@ -78,7 +78,7 @@ PROFILES: dict[str, PolicyProfile] = {
     ),
     "unattended": PolicyProfile(
         name="unattended",
-        description="No interactive approvals — risky host actions are auto-denied; workers stay sandboxed.",
+        description="No interactive approvals: risky host actions are auto-denied; workers stay sandboxed.",
         approve_all_os_tools=True,
         approve_high_os_tools=True,
         approve_file_writes=True,

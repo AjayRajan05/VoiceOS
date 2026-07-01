@@ -150,7 +150,7 @@ class VoiceCLIIntegration:
         Hybrid interaction loop supporting both voice and CLI
         """
         if not (self.voice_active and self.cli_active):
-            VoiceConsole.info("Hybrid mode — voice + CLI")
+            VoiceConsole.info("Hybrid mode: voice + CLI")
             self.voice_active = True
             self.cli_active = True
             self._notify_mode_change(InteractionMode.HYBRID)
@@ -339,13 +339,13 @@ class VoiceCLIIntegration:
             f"Mode: {self.current_mode.value}",
             "",
             "Commands:",
-            "  help     — this screen",
-            "  status   — system metrics",
-            "  mode     — show interaction mode",
-            "  voice    — voice-only mode",
-            "  cli      — terminal-only mode",
-            "  hybrid   — voice + terminal",
-            "  quit     — exit VoiceOS",
+            "  help     - this screen",
+            "  status   - system metrics",
+            "  mode     - show interaction mode",
+            "  voice    - voice-only mode",
+            "  cli      - terminal-only mode",
+            "  hybrid   - voice + terminal",
+            "  quit     - exit VoiceOS",
             "",
             "Examples:",
             '  open chrome',
@@ -356,8 +356,8 @@ class VoiceCLIIntegration:
             "",
             "Session shell (when enabled):",
             "  Say wake phrase before commands (default: hey voiceos)",
-            "  continue what we were doing — resume last session",
-            "  new conversation — reset session history",
+            "  continue what we were doing - resume last session",
+            "  new conversation - reset session history",
         ]
         for line in help_lines:
             if line.startswith("  ") and not line.startswith("  help"):
@@ -376,7 +376,7 @@ class VoiceCLIIntegration:
             VoiceConsole.info(f"Health: {health['status']}")
             VoiceConsole.dim(f"Requests: {metrics['total_requests']} | Success: {metrics['success_rate']:.1%}")
             VoiceConsole.dim(
-                f"Interactions — total: {self.stats['total_interactions']} | "
+                f"Interactions - total: {self.stats['total_interactions']} | "
                 f"voice: {self.stats['voice_interactions']} | cli: {self.stats['cli_interactions']}"
             )
         except (KeyError, AttributeError) as e:

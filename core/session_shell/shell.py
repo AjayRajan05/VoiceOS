@@ -1,4 +1,4 @@
-"""Universal session shell — persistent voice/CLI session with wake word gating."""
+"""Universal session shell: persistent voice/CLI session with wake word gating."""
 
 from __future__ import annotations
 
@@ -75,7 +75,7 @@ class SessionShell:
             sid = self.session_manager.ensure_active_session("voice")
             messages = self.session_manager.db.get_messages(sid, limit=3) if self.session_manager.db else []
             if messages:
-                resume_hint = "Your last conversation is available — say 'continue what we were doing' to resume."
+                resume_hint = "Your last conversation is available; say 'continue what we were doing' to resume."
 
         if not self.config.capability_greeting:
             return resume_hint
@@ -107,7 +107,7 @@ class SessionShell:
         return greeting
 
     async def submit_input(self, text: str, *, source: str = "cli") -> bool:
-        """Unified entry for CLI/gateway text — always accepted."""
+        """Unified entry for CLI/gateway text; always accepted."""
         if not text.strip():
             return False
         await self._publish_user_message(text.strip(), source=source)

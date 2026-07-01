@@ -30,6 +30,6 @@ def check_tool_surface(tool_name: str, *, surface: Optional[str] = None) -> Opti
     if surface == "worker" and is_host_only_tool(tool_name):
         return (
             f"Policy blocked '{tool_name}' on compute workers. "
-            "OS intents are host-only — run this action on the VoiceOS host."
+            "OS intents are host-only; run this action on the VoiceOS host."
         )
     return None

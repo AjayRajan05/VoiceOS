@@ -19,8 +19,8 @@ VoiceOS skills live as `SKILL.md` files with YAML frontmatter (agentskills.io co
 
 Two locations:
 
-1. **User skills:** `workspace/skills/<category>/<name>/SKILL.md` — created via `skill_create` or file tools.
-2. **Bundled skills:** `skills/bundled/voiceos/` or `skills/bundled/community/<category>/<name>/SKILL.md` — committed to the repo.
+1. **User skills:** `workspace/skills/<category>/<name>/SKILL.md` - created via `skill_create` or file tools.
+2. **Bundled skills:** `skills/bundled/voiceos/` or `skills/bundled/community/<category>/<name>/SKILL.md` - committed to the repo.
 
 ## When to Use
 
