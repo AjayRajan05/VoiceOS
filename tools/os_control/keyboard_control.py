@@ -1,8 +1,13 @@
 import time
 
-import pyautogui
-
 from tools.os_control.platform import get_platform_adapter
+
+
+def _pyautogui():
+    """Lazy import so headless CI (no DISPLAY) can still load the tool stack."""
+    import pyautogui
+
+    return pyautogui
 
 
 class KeyboardControl:
@@ -20,6 +25,7 @@ class KeyboardControl:
         return False
 
     def type_text(self, text, window_title=None):
+        pyautogui = _pyautogui()
         self._focus_window(window_title)
         # pyautogui.write is ASCII-only; typewrite handles basic unicode on some platforms
         if text and any(ord(c) > 127 for c in text):
@@ -36,6 +42,7 @@ class KeyboardControl:
         return "Typed the requested text."
 
     def press_key(self, key, window_title=None):
+        pyautogui = _pyautogui()
         self._focus_window(window_title)
         pyautogui.press(key)
         return f"Pressed {key}"

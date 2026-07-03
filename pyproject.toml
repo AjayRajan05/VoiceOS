@@ -36,6 +36,8 @@ dependencies = [
   "redis",
   "psycopg",
   "pyyaml",
+  "simpleeval",
+  "regex",
 ]
 
 [project.optional-dependencies]

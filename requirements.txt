@@ -1,4 +1,5 @@
 colorama
+pyyaml
 faster-whisper
 sounddevice
 soundfile
@@ -21,3 +22,5 @@ kokoro
 pypdf2
 redis
 psycopg
+simpleeval
+regex

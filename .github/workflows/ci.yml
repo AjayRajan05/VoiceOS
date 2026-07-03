@@ -9,18 +9,27 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      VOICEOS_ENV: ci
+      PYTHONPATH: .
+      DISPLAY: ":99"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install dependencies
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libportaudio2 portaudio19-dev
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt chardet sympy pytest pytest-asyncio
+          pip install -e ".[dev]"
       - name: Verify setup
         run: python scripts/verify_setup.py
       - name: System tests
         run: python main.py --test
       - name: Pytest suite
-        run: PYTHONPATH=. pytest tests/ -q --tb=short --ignore=tests/test_framework.py
+        run: python -m pytest tests/ -q --tb=short --ignore=tests/test_framework.py

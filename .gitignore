@@ -284,7 +284,7 @@ transformers_cache/
 # Development artifacts
 dev/
 experimental/
-sandbox/
+/sandbox/
 
 # Monitoring and metrics data
 metrics/
