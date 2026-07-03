@@ -144,9 +144,9 @@ models/whisper/
 models/tts/
 models/llm/
 
-# Workspace directories
-workspace/
-workspaces/
+# Workspace directories (runtime data at repo root only)
+/workspace/
+/workspaces/
 temp/
 tmp/
 

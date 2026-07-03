@@ -1,5 +1,5 @@
 """
-Dynamic Agent Runner — workspace/memory lifecycle around the runtime think-act loop.
+Dynamic Agent Runner: workspace/memory lifecycle around the runtime think-act loop.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from agents.runtime.types import AgentExecution, AgentStep
 from core.guardrails.tool_guardrails import ToolCallGuardrailConfig
 from core.runtime.session import ExecutionSession
 from llm.llm_service import LLMService
-from workspace.workspace_manager import WorkspaceManager
+from core.workspace.workspace_manager import WorkspaceManager
 
 logger: logging.Logger = logging.getLogger(__name__)
 
