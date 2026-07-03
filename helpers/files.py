@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from fnmatch import fnmatch
-from io import BytesIO, StringIO, TextIOBase
 import json
 import os
 import re
@@ -21,7 +20,7 @@ EXTENSIONS_DIR = "extensions"
 USER_DIR = "usr"
 TEMP_DIR = "tmp"
 API_DIR = "api"
-_base_dir: str = os.path.dirname(os.path.abspath(os.path.join(__file__, "../")))
+_base_dir = os.path.dirname(os.path.abspath(os.path.join(__file__, "../")))
 
 class VariablesPlugin(ABC):
     @abstractmethod
@@ -40,8 +39,8 @@ def load_plugin_variables(
 
     try:
         # Create filename and directories list
-        plugin_filename: str = basename(file, ".md") + ".py"
-        directories: list[str] = [dirname(file)] + backup_dirs
+        plugin_filename = basename(file, ".md") + ".py"
+        directories = [dirname(file)] + backup_dirs
         plugin_file = find_file_in_dirs(plugin_filename, directories)
     except FileNotFoundError:
         plugin_file = None
@@ -50,7 +49,7 @@ def load_plugin_variables(
 
         from helpers import modules
 
-        classes: list[type[VariablesPlugin]] = modules.load_classes_from_file(
+        classes = modules.load_classes_from_file(
             plugin_file, VariablesPlugin, one_per_file=False
         )
         for cls in classes:
@@ -88,7 +87,7 @@ from helpers.strings import sanitize_string
 
 def parse_file(
     _filename: str, _directories: list[str] | None = None, _encoding="utf-8", **kwargs
-) -> Any | str:
+):
     if _directories is None:
         _directories = []
 
@@ -97,21 +96,22 @@ def parse_file(
 
     # Read the file content
     with open(absolute_path, "r", encoding=_encoding) as f:
-        content: str = f.read()
+        # content = remove_code_fences(f.read())
+        content = f.read()
 
-    is_json: bool = is_full_json_template(content)
-    content: str = remove_code_fences(content)
-    variables: dict[str, Any] = load_plugin_variables(absolute_path, _directories, **kwargs) or {}  # type: ignore
+    is_json = is_full_json_template(content)
+    content = remove_code_fences(content)
+    variables = load_plugin_variables(absolute_path, _directories, **kwargs) or {}  # type: ignore
     variables.update(kwargs)
     if is_json:
-        content: str = replace_placeholders_json(content, **variables)
+        content = replace_placeholders_json(content, **variables)
         obj = json.loads(content)
         # obj = replace_placeholders_dict(obj, **variables)
         return obj
     else:
-        content: str = replace_placeholders_text(content, **variables)
+        content = replace_placeholders_text(content, **variables)
         # Process include statements
-        content: str = process_includes(
+        content = process_includes(
             # here we use kwargs, the plugin variables are not inherited
             content,
             _directories,
@@ -122,13 +122,13 @@ def parse_file(
 
 def read_prompt_file(
     _file: str, _directories: list[str] | None = None, _encoding="utf-8", **kwargs
-) -> str:
+):
     if _directories is None:
         _directories = []
 
     # If filename contains folder path, extract it and add to directories
     if os.path.dirname(_file):
-        folder_path: str = os.path.dirname(_file)
+        folder_path = os.path.dirname(_file)
         _file = os.path.basename(_file)
         _directories = [folder_path] + _directories
 
@@ -137,19 +137,20 @@ def read_prompt_file(
     source_dir = os.path.dirname(absolute_path)
 
     # Read the file content
-    with open(absolute_path, "r", encoding=_encoding) as f
+    with open(absolute_path, "r", encoding=_encoding) as f:
+        content = f.read()
 
-    variables: dict[str, Any] = load_plugin_variables(_file, _directories, **kwargs) or {}  # type: ignore
+    variables = load_plugin_variables(_file, _directories, **kwargs) or {}  # type: ignore
     variables.update(kwargs)
 
     # evaluate conditions
-    content: str = evaluate_text_conditions(content, **variables)
+    content = evaluate_text_conditions(content, **variables)
 
     # Replace placeholders with values from kwargs
-    content: str = replace_placeholders_text(content, **variables)
+    content = replace_placeholders_text(content, **variables)
 
     # Process include statements (with source tracking for {{include original}})
-    content: str = process_includes(
+    content = process_includes(
         # here we use kwargs, the plugin variables are not inherited
         content,
         _directories,
@@ -161,33 +162,33 @@ def read_prompt_file(
     return content
 
 
-def evaluate_text_conditions(_content: str, **kwargs) -> str:
+def evaluate_text_conditions(_content: str, **kwargs):
     # search for {{if ...}} ... {{endif}} blocks and evaluate conditions with nesting support
-    if_pattern: re.Pattern[str] = re.compile(r"{{\s*if\s+(.*?)}}", flags=re.DOTALL)
-    token_pattern: re.Pattern[str] = re.compile(r"{{\s*(if\b.*?|endif)\s*}}", flags=re.DOTALL)
+    if_pattern = re.compile(r"{{\s*if\s+(.*?)}}", flags=re.DOTALL)
+    token_pattern = re.compile(r"{{\s*(if\b.*?|endif)\s*}}", flags=re.DOTALL)
 
     def _process(text: str) -> str:
-        m_if: re.Match[str] | None = if_pattern.search(text)
+        m_if = if_pattern.search(text)
         if not m_if:
             return text
 
         depth = 1
-        pos: int = m_if.end()
+        pos = m_if.end()
         while True:
-            m: re.Match[str] | None = token_pattern.search(text, pos)
+            m = token_pattern.search(text, pos)
             if not m:
                 # Unterminated if-block, do not modify text
                 return text
-            token: str | Any = m.group(1)
+            token = m.group(1)
             depth += 1 if token.startswith("if ") else -1
             if depth == 0:
                 break
-            pos: int = m.end()
+            pos = m.end()
 
-        before: str = text[: m_if.start()]
-        condition: str | Any = m_if.group(1).strip()
-        inner: str = text[m_if.end() : m.start()]
-        after: str = text[m.end() :]
+        before = text[: m_if.start()]
+        condition = m_if.group(1).strip()
+        inner = text[m_if.end() : m.start()]
+        after = text[m.end() :]
 
         try:
             result = simple_eval(condition, names=kwargs)
@@ -197,10 +198,10 @@ def evaluate_text_conditions(_content: str, **kwargs) -> str:
 
         if result:
             # Keep inner content (processed recursively), remove if/endif markers
-            kept: str = before + _process(inner)
+            kept = before + _process(inner)
         else:
             # Skip entire block, including inner content and markers
-            kept: str = before
+            kept = before
 
         # Continue processing the remaining text after this block
         return kept + _process(after)
@@ -208,81 +209,44 @@ def evaluate_text_conditions(_content: str, **kwargs) -> str:
     return _process(_content)
 
 
-def read_file(relative_path: str, encoding="utf-8") -> str:
-    """Read file content as text.
-    
-    Args:
-        relative_path: Relative path to the file
-        encoding: Text encoding (default: utf-8)
-        
-    Returns:
-        File content as string
-        
-    Raises:
-        FileNotFoundError: If file doesn't exist
-        IOError: If file cannot be read
-    """
+def read_file(relative_path: str, encoding="utf-8"):
+    # Try to get the absolute path for the file from the original directory or backup directories
     absolute_path = get_abs_path(relative_path)
-    with open(absolute_path, "r", encoding=encoding) as f
+
+    # Read the file content
+    with open(absolute_path, "r", encoding=encoding) as f:
+        return f.read()
 
 def read_file_json(relative_path: str, encoding="utf-8"):
-    """Read JSON file and parse into Python object.
-    
-    Args:
-        relative_path: Relative path to JSON file
-        encoding: Text encoding (default: utf-8)
-        
-    Returns:
-        Parsed JSON data (dict, list, etc.)
-        
-    Raises:
-        FileNotFoundError: If file doesn't exist
-        json.JSONDecodeError: If JSON is invalid
-    """
+    # Try to get the absolute path for the file from the original directory or backup directories
     absolute_path = get_abs_path(relative_path)
-    with open(absolute_path, "r", encoding=encoding) as f
+
+    # Read the file content
+    with open(absolute_path, "r", encoding=encoding) as f:
+        return json.load(f)
 
 def read_file_yaml(relative_path: str, encoding="utf-8"):
-    """Read YAML file and parse into Python object.
-    
-    Args:
-        relative_path: Relative path to YAML file
-        encoding: Text encoding (default: utf-8)
-        
-    Returns:
-        Parsed YAML data (dict, list, etc.)
-        
-    Raises:
-        FileNotFoundError: If file doesn't exist
-        yaml.YAMLError: If YAML is invalid
-    """
     absolute_path = get_abs_path(relative_path)
-    with open(absolute_path, "r", encoding=encoding) as f
 
-def read_file_bin(relative_path: str) -> bytes:
-    """Read file content as binary bytes.
-    
-    Args:
-        relative_path: Relative path to the file
-        
-    Returns:
-        Raw binary file content
-        
-    Raises:
-        FileNotFoundError: If file doesn't exist
-        IOError: If file cannot be read
-    """
+    with open(absolute_path, "r", encoding=encoding) as f:
+        return yaml.loads(f.read())
+
+def read_file_bin(relative_path: str):
+    # Try to get the absolute path for the file from the original directory or backup directories
     absolute_path = get_abs_path(relative_path)
+
     # read binary content
-    with open(absolute_path, "rb") as f
+    with open(absolute_path, "rb") as f:
+        return f.read()
 
 
-def read_file_base64(relative_path) -> str:
+def read_file_base64(relative_path):
     # get absolute path
     absolute_path = get_abs_path(relative_path)
 
     # read binary content and encode to base64
-    with open(absolute_path, "rb") as f
+    with open(absolute_path, "rb") as f:
+        return base64.b64encode(f.read()).decode("utf-8")
 
 
 def is_probably_binary_bytes(data: bytes, threshold: float = 0.3) -> bool:
@@ -300,8 +264,8 @@ def is_probably_binary_bytes(data: bytes, threshold: float = 0.3) -> bool:
         return True
 
     # Count suspicious control bytes
-    allowed: set[int] = {8, 9, 10, 12, 13}  # \b \t \n \f \r
-    suspicious: int = sum(1 for b in data if ((b < 32 and b not in allowed) or b == 127))
+    allowed = {8, 9, 10, 12, 13}  # \b \t \n \f \r
+    suspicious = sum(1 for b in data if ((b < 32 and b not in allowed) or b == 127))
     return (suspicious / len(data)) > threshold
 
 
@@ -310,27 +274,28 @@ def is_probably_binary_file(
 ) -> bool:
     """Binary detection by reading only the first ~sample_size bytes of a file."""
     try:
-        with open(file_path, "rb") as f
+        with open(file_path, "rb") as f:
+            sample = f.read(sample_size)
     except (FileNotFoundError, PermissionError, OSError):
         raise OSError(f"Unable to read file for binary detection: {file_path}")
     return is_probably_binary_bytes(sample, threshold=threshold)
 
 
-def replace_placeholders_text(_content: str, **kwargs) -> str:
+def replace_placeholders_text(_content: str, **kwargs):
     # Replace placeholders with values from kwargs
     for key, value in kwargs.items():
-        placeholder: str = "{{" + key + "}}"
+        placeholder = "{{" + key + "}}"
         strval = str(value)
         _content = _content.replace(placeholder, strval)
     return _content
 
 
-def replace_placeholders_json(_content: str, **kwargs) -> str:
+def replace_placeholders_json(_content: str, **kwargs):
     # Replace placeholders with values from kwargs
     for key, value in kwargs.items():
-        placeholder: str = "{{" + key + "}}"
+        placeholder = "{{" + key + "}}"
         if placeholder in _content:
-            strval: str = json.dumps(value)
+            strval = json.dumps(value)
             _content = _content.replace(placeholder, strval)
     return _content
 
@@ -338,7 +303,7 @@ def replace_placeholders_json(_content: str, **kwargs) -> str:
 def replace_placeholders_dict(_content: dict, **kwargs):
     def replace_value(value):
         if isinstance(value, str):
-            placeholders: list[Any] = re.findall(r"{{(\w+)}}", value)
+            placeholders = re.findall(r"{{(\w+)}}", value)
             if placeholders:
                 for placeholder in placeholders:
                     if placeholder in kwargs:
@@ -346,11 +311,11 @@ def replace_placeholders_dict(_content: dict, **kwargs):
                         if value == f"{{{{{placeholder}}}}}":
                             return replacement
                         elif isinstance(replacement, (dict, list)):
-                            value: str = value.replace(
+                            value = value.replace(
                                 f"{{{{{placeholder}}}}}", json.dumps(replacement)
                             )
                         else:
-                            value: str = value.replace(
+                            value = value.replace(
                                 f"{{{{{placeholder}}}}}", str(replacement)
                             )
             return value
@@ -370,14 +335,14 @@ def process_includes(
     _source_file: str = "",
     _source_dir: str = "",
     **kwargs,
-) -> str:
+):
     # {{include original}} — include same file from lower-priority directory
-    original_pattern: re.Pattern[str] = re.compile(r"{{\s*include\s+original\s*}}")
+    original_pattern = re.compile(r"{{\s*include\s+original\s*}}")
 
     def replace_original(match):
         if not _source_file or not _source_dir:
             return match.group(0)
-        remaining_dirs: list[str] = _get_dirs_after(_directories, _source_dir)
+        remaining_dirs = _get_dirs_after(_directories, _source_dir)
         if not remaining_dirs:
             return ""
         try:
@@ -388,7 +353,7 @@ def process_includes(
     _content = re.sub(original_pattern, replace_original, _content)
 
     # {{ include 'path' }} — include a named file
-    include_pattern: re.Pattern[str] = re.compile(r"{{\s*include\s*['\"](.*?)['\"]\s*}}")
+    include_pattern = re.compile(r"{{\s*include\s*['\"](.*?)['\"]\s*}}")
 
     def replace_include(match):
         include_path = match.group(1)
@@ -404,7 +369,7 @@ def process_includes(
 
 def _get_dirs_after(_directories: list[str], _source_dir: str) -> list[str]:
     """Return directories after _source_dir in the priority list."""
-    source_abs: str = os.path.normpath(os.path.abspath(_source_dir))
+    source_abs = os.path.normpath(os.path.abspath(_source_dir))
     found = False
     result: list[str] = []
     for d in _directories:
@@ -417,15 +382,6 @@ def _get_dirs_after(_directories: list[str], _source_dir: str) -> list[str]:
 
 
 def find_file_in_dirs(_filename: str, _directories: list[str]):
-    """Find a file in a list of directories.
-    
-    Args:
-        _filename: Name of the file to find
-        _directories: List of directories to search
-        
-    Returns:
-        Full path to the file if found, None otherwise
-    """
     """
     This function searches for a filename in a list of directories in order.
     Returns the absolute path of the first found file.
@@ -454,7 +410,7 @@ def get_unique_filenames_in_dirs(
     for dir_path in dir_paths:
         full_dir = get_abs_path(dir_path)
         for file_path in glob.glob(os.path.join(full_dir, pattern)):
-            fname: str = os.path.basename(file_path)
+            fname = os.path.basename(file_path)
             if fname not in seen and (
                 type == "any"
                 or (type == "file" and os.path.isfile(file_path))
@@ -477,7 +433,7 @@ def find_existing_paths_by_pattern(pattern: str):
     return matches
 
 
-def remove_code_fences(text) -> str:
+def remove_code_fences(text):
     # Pattern to match code fences with optional language specifier
     pattern = r"(```|~~~)(.*?\n)(.*?)(\1)"
 
@@ -486,74 +442,50 @@ def remove_code_fences(text) -> str:
         return match.group(3)  # Return the code without fences
 
     # Use re.DOTALL to make '.' match newlines
-    result: str = re.sub(pattern, replacer, text, flags=re.DOTALL)
+    result = re.sub(pattern, replacer, text, flags=re.DOTALL)
 
     return result
 
 
-def is_full_json_template(text) -> bool:
+def is_full_json_template(text):
     # Pattern to match the entire text enclosed in ```json or ~~~json fences
     pattern = r"^\s*(```|~~~)\s*json\s*\n(.*?)\n\1\s*$"
     # Use re.DOTALL to make '.' match newlines
-    match: re.Match[str] | None = re.fullmatch(pattern, text.strip(), flags=re.DOTALL)
+    match = re.fullmatch(pattern, text.strip(), flags=re.DOTALL)
     return bool(match)
 
 
-def write_file(relative_path: str, content: str, encoding: str = "utf-8") -> None:
+def write_file(relative_path: str, content: str, encoding: str = "utf-8"):
     abs_path = get_abs_path(relative_path)
     os.makedirs(os.path.dirname(abs_path), exist_ok=True)
     content = sanitize_string(content, encoding)
-    with open(abs_path, "w", encoding=encoding) as f
+    with open(abs_path, "w", encoding=encoding) as f:
+        f.write(content)
 
-def delete_file(relative_path: str) -> None:
+def delete_file(relative_path: str):
     abs_path = get_abs_path(relative_path)
     if exists(abs_path):
         os.remove(abs_path)
 
-def write_file_bin(relative_path: str, content: bytes) -> None:
+def write_file_bin(relative_path: str, content: bytes):
     abs_path = get_abs_path(relative_path)
     os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-    with open(abs_path, "wb") as f
+    with open(abs_path, "wb") as f:
+        f.write(content)
 
 
-def write_file_base64(relative_path: str, content: str) -> None:
+def write_file_base64(relative_path: str, content: str):
     # decode base64 string to bytes
-    data: bytes = base64.b64decode(content)
+    data = base64.b64decode(content)
     abs_path = get_abs_path(relative_path)
     os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-    with open(abs_path, "wb") as f
+    with open(abs_path, "wb") as f:
+        f.write(data)
 
 
-def delete_dir(relative_path: str) -> None:
-    """Delete a directory recursively with path validation.
-    
-    Args:
-        relative_path: Relative path to directory
-        
-    Raises:
-        ValueError: If path contains path traversal attempts
-    """
-    # Input validation to prevent path traversal
-    if not relative_path or not isinstance(relative_path, str):
-        raise ValueError("relative_path must be a non-empty string")
-    
-    if '..' in relative_path or relative_path.startswith('/'):
-        raise ValueError(f"Invalid path (contains traversal or absolute path): {relative_path}")
-    
+def delete_dir(relative_path: str):
     # ensure deletion of directory without propagating errors
     abs_path = get_abs_path(relative_path)
-    
-    # Additional safety check - ensure we're not deleting outside safe boundaries
-    try:
-        from pathlib import Path
-        base_path = Path(get_abs_path('.'))
-        if not Path(abs_path).resolve().is_relative_to(base_path.resolve()):
-            raise ValueError(f"Path escapes base directory: {abs_path}")
-    except (ValueError, AttributeError):
-        # is_relative_to not available in older Python, use alternative check
-        if not os.path.abspath(abs_path).startswith(os.path.abspath(get_abs_path('.'))):
-            raise ValueError(f"Path escapes base directory: {abs_path}")
-    
     if os.path.exists(abs_path):
         # first try with ignore_errors=True which is the safest option
         shutil.rmtree(abs_path, ignore_errors=True)
@@ -564,19 +496,20 @@ def delete_dir(relative_path: str) -> None:
                 # try to change permissions and delete again
                 for root, dirs, files in os.walk(abs_path, topdown=False):
                     for name in files:
-                        file_path: str = os.path.join(root, name)
+                        file_path = os.path.join(root, name)
                         os.chmod(file_path, 0o777)
                     for name in dirs:
-                        dir_path: str = os.path.join(root, name)
+                        dir_path = os.path.join(root, name)
                         os.chmod(dir_path, 0o777)
 
                 # try again after changing permissions
                 shutil.rmtree(abs_path, ignore_errors=True)
-            except (OSError, IOError, PermissionError) as e
-            except Exception as e
+            except:
+                # suppress all errors - we're ensuring no errors propagate
+                pass
 
 
-def move_dir(old_path: str, new_path: str) -> None:
+def move_dir(old_path: str, new_path: str):
     # rename/move the directory from old_path to new_path (both relative)
     abs_old = get_abs_path(old_path)
     abs_new = get_abs_path(new_path)
@@ -599,7 +532,7 @@ def move_dir_safe(src, dst, rename_format="{name}_{number}"):
     base_dst = dst
     i = 2
     while exists(dst):
-        dst: str = rename_format.format(name=base_dst, number=i)
+        dst = rename_format.format(name=base_dst, number=i)
         i += 1
     move_dir(src, dst)
     return dst
@@ -610,13 +543,13 @@ def create_dir_safe(dst, rename_format="{name}_{number}"):
     base_dst = dst
     i = 2
     while exists(dst):
-        dst: str = rename_format.format(name=base_dst, number=i)
+        dst = rename_format.format(name=base_dst, number=i)
         i += 1
     create_dir(dst)
     return dst
 
 
-def create_dir(relative_path: str) -> None:
+def create_dir(relative_path: str):
     abs_path = get_abs_path(relative_path)
     os.makedirs(abs_path, exist_ok=True)
 
@@ -628,7 +561,7 @@ def list_files(relative_path: str, filter: str = "*"):
     return [file for file in os.listdir(abs_path) if fnmatch(file, filter)]
 
 
-def make_dirs(relative_path: str) -> None:
+def make_dirs(relative_path: str):
     abs_path = get_abs_path(relative_path)
     os.makedirs(os.path.dirname(abs_path), exist_ok=True)
 
@@ -660,7 +593,7 @@ def get_abs_path_development(*relative_paths):
     return fix_dev_path(abs)
 
 
-def deabsolute_path(path: str) -> str:
+def deabsolute_path(path: str):
     "Convert absolute paths to relative paths based on the base directory."
     return os.path.relpath(path, get_base_dir())
 
@@ -675,51 +608,51 @@ def fix_dev_path(path: str):
     return get_abs_path(path)
 
 
-def normalize_a0_path(path: str) -> str:
+def normalize_a0_path(path: str):
     "Convert absolute paths into /a0/... paths"
     if is_in_base_dir(path):
-        deabs: str = deabsolute_path(path)
+        deabs = deabsolute_path(path)
         return "/a0/" + deabs
     return path
 
 
-def exists(*relative_paths) -> bool:
+def exists(*relative_paths):
     path = _resolve_path(*relative_paths)
     return os.path.exists(path)
 
 
-def is_file(*relative_paths) -> bool:
+def is_file(*relative_paths):
     path = _resolve_path(*relative_paths)
     return os.path.isfile(path)
 
 
-def is_dir(*relative_paths) -> bool:
+def is_dir(*relative_paths):
     path = _resolve_path(*relative_paths)
     return os.path.isdir(path)
 
 
-def get_base_dir() -> str:
+def get_base_dir():
     return _base_dir
 
 
-def basename(path: str, suffix: str | None = None) -> str:
+def basename(path: str, suffix: str | None = None):
     if suffix:
         return os.path.basename(path).removesuffix(suffix)
     return os.path.basename(path)
 
 
-def dirname(path: str) -> str:
+def dirname(path: str):
     return os.path.dirname(path)
 
 
-def is_in_base_dir(path: str) -> bool:
+def is_in_base_dir(path: str):
     return is_in_dir(path, get_base_dir())
 
 
-def is_in_dir(path: str, dir: str) -> bool:
+def is_in_dir(path: str, dir: str):
     # check if the given path is within the directory
-    abs_path: str = os.path.abspath(path)
-    abs_dir: str = os.path.abspath(dir)
+    abs_path = os.path.abspath(path)
+    abs_dir = os.path.abspath(dir)
     return os.path.commonpath([abs_path, abs_dir]) == abs_dir
 
 
@@ -744,19 +677,20 @@ def get_subdirectories(
     ]
 
 
-def zip_dir(dir_path: str) -> str:
+def zip_dir(dir_path: str):
     full_path = get_abs_path(dir_path)
-    zip_file_path: str = tempfile.NamedTemporaryFile(suffix=".zip", delete=False).name
+    zip_file_path = tempfile.NamedTemporaryFile(suffix=".zip", delete=False).name
     base_name = os.path.basename(full_path)
-    with zipfile.ZipFile(zip_file_path, "w", compression=zipfile.ZIP_DEFLATED) as zip
+    with zipfile.ZipFile(zip_file_path, "w", compression=zipfile.ZIP_DEFLATED) as zip:
+        for root, _, files in os.walk(full_path):
             for file in files:
-                file_path: str = os.path.join(root, file)
-                rel_path: str = os.path.relpath(file_path, full_path)
+                file_path = os.path.join(root, file)
+                rel_path = os.path.relpath(file_path, full_path)
                 zip.write(file_path, os.path.join(base_name, rel_path))
     return zip_file_path
 
 
-def move_file(relative_path: str, new_path: str) -> None:
+def move_file(relative_path: str, new_path: str):
     abs_path = get_abs_path(relative_path)
     new_abs_path = get_abs_path(new_path)
     os.makedirs(os.path.dirname(new_abs_path), exist_ok=True)
@@ -798,7 +732,7 @@ def read_text_files_in_dir(
             if mime is not None and not mime.startswith("text"):
                 continue
             # Check if file is binary by reading a small chunk
-            content: str = read_file(file_path)
+            content = read_file(file_path)
             result[os.path.basename(file_path)] = content
         except Exception:
             continue
@@ -812,8 +746,8 @@ def list_files_in_dir_recursively(relative_path: str) -> list[str]:
     result = []
     for root, dirs, files in os.walk(abs_path):
         for file in files:
-            file_path: str = os.path.join(root, file)
+            file_path = os.path.join(root, file)
             # Return relative path from the base directory
-            rel_path: str = os.path.relpath(file_path, abs_path)
+            rel_path = os.path.relpath(file_path, abs_path)
             result.append(rel_path)
     return result
