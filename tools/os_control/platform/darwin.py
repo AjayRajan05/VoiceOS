@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from tools.os_control.platform.aliases import resolve_app_alias
 from tools.os_control.platform.base import PlatformAdapter
+from tools.os_control.platform.pyautogui_util import run_hotkey
 
 
 class DarwinAdapter(PlatformAdapter):
@@ -64,15 +65,15 @@ class DarwinAdapter(PlatformAdapter):
             return {"success": False, "error": str(exc)}
 
     def close_active_window(self) -> str:
-        import pyautogui
-
-        pyautogui.hotkey(*self.close_window_hotkey_keys())
+        err = run_hotkey(self.close_window_hotkey_keys())
+        if err:
+            return f"Could not close window: {err}"
         return "Closed current window."
 
     def switch_window(self) -> str:
-        import pyautogui
-
-        pyautogui.hotkey(*self.switch_window_hotkey_keys())
+        err = run_hotkey(self.switch_window_hotkey_keys())
+        if err:
+            return f"Could not switch window: {err}"
         return "Switched window."
 
     def close_window_hotkey_keys(self) -> tuple:

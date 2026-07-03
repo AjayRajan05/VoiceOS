@@ -1,13 +1,12 @@
 import time
 
 from tools.os_control.platform import get_platform_adapter
+from tools.os_control.platform.pyautogui_util import get_pyautogui
 
 
 def _pyautogui():
     """Lazy import so headless CI (no DISPLAY) can still load the tool stack."""
-    import pyautogui
-
-    return pyautogui
+    return get_pyautogui()
 
 
 class KeyboardControl:
